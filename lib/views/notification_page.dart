@@ -26,7 +26,13 @@ class NotificationPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentUid = FirebaseAuth.instance.currentUser!.uid;
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      return Scaffold(
+        body: Center(child: Text('Please log in to view notifications.')),
+      );
+    }
+    final currentUid = currentUser.uid;
 
     return Scaffold(
       appBar: AppBar(
@@ -57,6 +63,9 @@ class NotificationPage extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return const Center(child: Text('Failed to load notifications.'));
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Center(child: Text("No notifications yet"));
@@ -190,39 +199,61 @@ class NotificationPage extends StatelessWidget {
                               type == 'unhidden' ||
                               type == 'unarchived')
                           ? () async {
-                              final recipeId = data['recipeId'] ?? '';
-                              if (recipeId.isEmpty) return;
-                              final doc = await FirebaseFirestore.instance
-                                  .collection('recipes')
-                                  .doc(recipeId)
-                                  .get();
-                              if (!doc.exists) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Recipe not found.'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                                return;
+                              try {
+                                final recipeId = data['recipeId'] ?? '';
+                                if (recipeId.isEmpty) return;
+                                final doc = await FirebaseFirestore.instance
+                                    .collection('recipes')
+                                    .doc(recipeId)
+                                    .get();
+                                if (!doc.exists) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Recipe not found.'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                  return;
+                                }
+                                final recipeData = doc.data()!;
+                                // If archived, inform instead of navigating
+                                if ((recipeData['isArchived'] ?? false) ==
+                                    true) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'This recipe is archived.',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  return;
+                                }
+                                final recipe = Recipe.fromJson(recipeData);
+                                if (context.mounted) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          RecipeDetailPage(recipe: recipe),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Could not open recipe. Please try again.',
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
                               }
-                              final recipeData = doc.data()!;
-                              // If archived, inform instead of navigating (or choose to still navigate if you want view-only)
-                              if ((recipeData['isArchived'] ?? false) == true) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('This recipe is archived.'),
-                                  ),
-                                );
-                                return;
-                              }
-                              final recipe = Recipe.fromJson(recipeData);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      RecipeDetailPage(recipe: recipe),
-                                ),
-                              );
                             }
                           : null,
                     );
@@ -256,13 +287,16 @@ class FollowButton extends StatefulWidget {
 class _FollowButtonState extends State<FollowButton> {
   bool _isFollowing = false;
   bool _loading = false;
-  final String _currentUid = FirebaseAuth.instance.currentUser!.uid;
+  late final String _currentUid;
   final FollowService _followService = FollowService();
   StreamSubscription? _sub;
 
   @override
   void initState() {
     super.initState();
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+    _currentUid = currentUser.uid;
     // Listen to follow state; ignore updates while a toggle is in flight.
     _sub = _followService.isFollowing(_currentUid, widget.fromUid).listen((
       value,
@@ -318,9 +352,11 @@ class _FollowButtonState extends State<FollowButton> {
           _isFollowing = original; // revert on error
           _loading = false;
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Follow failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Follow action failed. Please try again.'),
+          ),
+        );
       }
     }
   }

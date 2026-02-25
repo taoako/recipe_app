@@ -3,13 +3,19 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:cloudinary_public/cloudinary_public.dart';
 import 'package:http/http.dart' as http;
+import 'env_config.dart';
+import 'app_logger.dart';
 
 class CloudinaryService {
-  final CloudinaryPublic cloudinary = CloudinaryPublic(
-    'dhofbkveg',
-    'INGRNTS',
-    cache: false,
-  );
+  late final CloudinaryPublic cloudinary;
+
+  CloudinaryService() {
+    cloudinary = CloudinaryPublic(
+      EnvConfig.cloudinaryCloudName,
+      EnvConfig.cloudinaryUploadPreset,
+      cache: false,
+    );
+  }
 
   Future<String> uploadFile(File file, {String? folder}) async {
     try {
@@ -22,6 +28,7 @@ class CloudinaryService {
       );
       return response.secureUrl;
     } catch (e) {
+      AppLogger.error('Cloudinary file upload failed', e);
       rethrow;
     }
   }
@@ -31,8 +38,9 @@ class CloudinaryService {
     String folder = '',
   }) async {
     try {
+      final cloudName = EnvConfig.cloudinaryCloudName;
       final uri = Uri.parse(
-        'https://api.cloudinary.com/v1_1/dhofbkveg/image/upload',
+        'https://api.cloudinary.com/v1_1/$cloudName/image/upload',
       );
 
       var request = http.MultipartRequest('POST', uri);
@@ -45,12 +53,19 @@ class CloudinaryService {
         ),
       );
 
-      request.fields['upload_preset'] = 'INGRNTS';
+      request.fields['upload_preset'] = EnvConfig.cloudinaryUploadPreset;
       if (folder.isNotEmpty) {
         request.fields['folder'] = folder;
       }
 
       final response = await request.send();
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'Cloudinary upload returned status ${response.statusCode}',
+        );
+      }
+
       final responseData = await response.stream.toBytes();
       final result = String.fromCharCodes(responseData);
       final jsonResponse = json.decode(result);
@@ -58,10 +73,10 @@ class CloudinaryService {
       if (jsonResponse['secure_url'] != null) {
         return jsonResponse['secure_url'];
       } else {
-        throw Exception("Upload failed: ${jsonResponse.toString()}");
+        throw Exception('Upload failed: no secure_url in response');
       }
     } catch (e) {
-      print('Cloudinary upload error: $e');
+      AppLogger.error('Cloudinary bytes upload failed', e);
       rethrow;
     }
   }

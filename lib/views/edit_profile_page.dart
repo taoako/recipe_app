@@ -6,6 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/cloudinary_service.dart';
+import '../services/app_logger.dart';
+import '../services/input_validator.dart';
 
 class EditProfilePage extends StatefulWidget {
   final AppUser user;
@@ -63,7 +65,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
           folder: 'users/profile_images',
         );
       } catch (e) {
-        debugPrint('Profile image upload failed: $e');
+        AppLogger.error('Profile image upload failed', e);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Image upload failed. Your previous photo will be kept.',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
       }
     }
 
@@ -106,11 +118,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
       if (mounted) Navigator.pop(context, updatedUser);
     } catch (e) {
-      debugPrint('Failed to save profile: $e');
+      AppLogger.error('Failed to save profile', e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save profile: $e'),
+          const SnackBar(
+            content: Text('Failed to save profile. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -220,9 +232,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     TextFormField(
                       controller: _usernameController,
                       decoration: _inputDecoration("Username"),
-                      validator: (value) => value == null || value.isEmpty
-                          ? "Enter a username"
-                          : null,
+                      validator: (value) =>
+                          InputValidator.validateUsername(value),
                     ),
                     const SizedBox(height: 20),
 
@@ -231,9 +242,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       controller: _emailController,
                       decoration: _inputDecoration("Email"),
                       keyboardType: TextInputType.emailAddress,
-                      validator: (value) => value == null || value.isEmpty
-                          ? "Enter an email"
-                          : null,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Enter an email';
+                        }
+                        if (!InputValidator.isValidEmail(value)) {
+                          return 'Enter a valid email address';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 20),
 

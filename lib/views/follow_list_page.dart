@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'other_user_page.dart';
+import '../services/app_logger.dart';
 
 class FollowListPage extends StatelessWidget {
   final String userId;
@@ -63,14 +64,20 @@ class _UserList extends StatelessWidget {
   const _UserList({required this.userId, required this.type});
 
   Future<void> _toggleFollow(
-      String targetUserId, bool isFollowing, BuildContext context) async {
-    final currentUser = FirebaseAuth.instance.currentUser!;
+    String targetUserId,
+    bool isFollowing,
+    BuildContext context,
+  ) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
     final currentUid = currentUser.uid;
 
-    final currentUserRef =
-        FirebaseFirestore.instance.collection("users").doc(currentUid);
-    final targetUserRef =
-        FirebaseFirestore.instance.collection("users").doc(targetUserId);
+    final currentUserRef = FirebaseFirestore.instance
+        .collection("users")
+        .doc(currentUid);
+    final targetUserRef = FirebaseFirestore.instance
+        .collection("users")
+        .doc(targetUserId);
 
     try {
       if (isFollowing) {
@@ -91,10 +98,12 @@ class _UserList extends StatelessWidget {
         });
       }
     } catch (e) {
-      debugPrint("Follow/Unfollow error: $e");
+      AppLogger.error('Follow/Unfollow error', e);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Something went wrong: $e")),
+          const SnackBar(
+            content: Text('Something went wrong. Please try again.'),
+          ),
         );
       }
     }

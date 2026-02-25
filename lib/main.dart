@@ -3,6 +3,7 @@ import 'package:final_proj/firebase_options.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'onboarding.dart';
 import 'auth/login.dart';
 import 'main_page.dart';
@@ -12,9 +13,13 @@ import 'views/profile_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Load environment variables before any service initialization
+  await dotenv.load(fileName: '.env');
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   FirebaseFirestore.instance.settings = const Settings(
-    persistenceEnabled: true, // or false, depending on your need
+    persistenceEnabled: true,
     sslEnabled: true,
   );
   runApp(const MyApp());

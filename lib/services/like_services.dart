@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'app_logger.dart';
 
 class LikeService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -56,7 +57,7 @@ class LikeService {
         }
       }
     } catch (e) {
-      print('Like error: $e');
+      AppLogger.error('Like toggle failed', e);
       rethrow;
     }
   }
@@ -76,7 +77,7 @@ class LikeService {
 
       return likedBy.contains(userId);
     } catch (e) {
-      print('Error checking like status: $e');
+      AppLogger.error('Error checking like status', e);
       return false;
     }
   }

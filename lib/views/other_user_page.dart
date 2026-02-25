@@ -4,12 +4,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../model/recipe.dart';
 import '../services/follow_and_unfollow_services.dart';
+import '../services/app_logger.dart';
 import 'recipe_detail_page.dart';
 
 class OtherUserProfilePage extends StatefulWidget {
   final String userId;
   const OtherUserProfilePage({Key? key, required this.userId})
-      : super(key: key);
+    : super(key: key);
 
   @override
   _OtherUserProfilePageState createState() => _OtherUserProfilePageState();
@@ -22,16 +23,18 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
   Future<void> _toggleFollow() async {
     if (_currentUser == null || _isProcessingFollow) return;
     setState(() => _isProcessingFollow = true);
-    final currentUid = _currentUser!.uid;
+    final currentUid = _currentUser.uid;
 
     try {
-      final currentUserSnap =
-          await FirebaseFirestore.instance.collection('users').doc(currentUid).get();
+      final currentUserSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUid)
+          .get();
       final currentUserData = currentUserSnap.data() ?? {};
-      final username = currentUserData['username'] ??
-          currentUserData['name'] ??
-          'Someone';
-      final profileImageUrl = currentUserData['photoUrl'] ??
+      final username =
+          currentUserData['username'] ?? currentUserData['name'] ?? 'Someone';
+      final profileImageUrl =
+          currentUserData['photoUrl'] ??
           currentUserData['profileImageUrl'] ??
           '';
 
@@ -51,8 +54,14 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
+      AppLogger.error('Toggle follow failed', e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Something went wrong. Please try again.'),
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isProcessingFollow = false);
     }
@@ -95,6 +104,9 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+          if (snapshot.hasError) {
+            return const Center(child: Text('Failed to load user profile.'));
+          }
 
           final userData = snapshot.data?.data() ?? {};
           final name = userData["name"] ?? userData['username'] ?? "Unknown";
@@ -125,9 +137,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                     Positioned.fill(
                       child: BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          color: Colors.black.withOpacity(0.4),
-                        ),
+                        child: Container(color: Colors.black.withOpacity(0.4)),
                       ),
                     ),
                     Positioned.fill(
@@ -142,7 +152,8 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                               backgroundImage: photoUrl.isNotEmpty
                                   ? NetworkImage(photoUrl)
                                   : const NetworkImage(
-                                      "https://via.placeholder.com/150"),
+                                      "https://via.placeholder.com/150",
+                                    ),
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -234,40 +245,42 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                   ],
                 ),
 
-               Container(
-  width: double.infinity,
-  decoration: const BoxDecoration(
-    color: Colors.white,
-    borderRadius: BorderRadius.only(
-      topLeft: Radius.circular(25),
-      topRight: Radius.circular(25),
-    ),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black26,
-        offset: Offset(0, -3),
-        blurRadius: 10,
-      ),
-    ],
-  ),
-  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const Text(
-        "Recipes",
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: Colors.black87,
-        ),
-      ),
-      const SizedBox(height: 10),
-      _buildRecipeGrid(),
-    ],
-  ),
-),
-
+                Container(
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(25),
+                      topRight: Radius.circular(25),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        offset: Offset(0, -3),
+                        blurRadius: 10,
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 16,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Recipes",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _buildRecipeGrid(),
+                    ],
+                  ),
+                ),
               ],
             ),
           );
@@ -330,8 +343,10 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
 
         final docs = snapshot.data!.docs.where((doc) {
           final data = doc.data();
-          final isArchived = data['isArchived'] == true || data['isArchived'] == 'true';
-          final isHidden = data['isHidden'] == true || data['isHidden'] == 'true';
+          final isArchived =
+              data['isArchived'] == true || data['isArchived'] == 'true';
+          final isHidden =
+              data['isHidden'] == true || data['isHidden'] == 'true';
           final authorId = data['authorId'];
           final isOwner = _currentUser?.uid == authorId;
 

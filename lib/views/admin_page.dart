@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../model/recipe.dart';
 import 'recipe_detail_page.dart';
 import '../auth/login.dart';
+import '../services/app_logger.dart';
 
 class AdminPage extends StatefulWidget {
   const AdminPage({Key? key}) : super(key: key);
@@ -80,8 +81,8 @@ class _AdminPageState extends State<AdminPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error approving appeal: $e'),
+          const SnackBar(
+            content: Text('Failed to approve appeal. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -134,8 +135,8 @@ class _AdminPageState extends State<AdminPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error rejecting appeal: $e'),
+          const SnackBar(
+            content: Text('Failed to reject appeal. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -181,7 +182,7 @@ class _AdminPageState extends State<AdminPage> {
           });
         }
       } catch (e) {
-        debugPrint('Failed to send hide/unhide notification: $e');
+        AppLogger.error('Failed to send hide/unhide notification', e);
       }
 
       if (mounted) {
@@ -195,7 +196,10 @@ class _AdminPageState extends State<AdminPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text('An error occurred. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -232,7 +236,7 @@ class _AdminPageState extends State<AdminPage> {
               });
         }
       } catch (e) {
-        debugPrint('Failed to send unarchive notification: $e');
+        AppLogger.error('Failed to send unarchive notification', e);
       }
 
       if (mounted) {
@@ -246,8 +250,8 @@ class _AdminPageState extends State<AdminPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error restoring recipe: $e'),
+          const SnackBar(
+            content: Text('Failed to restore recipe. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -352,11 +356,11 @@ class _AdminPageState extends State<AdminPage> {
         );
       }
     } catch (e) {
-      debugPrint('Error deleting recipe: $e');
+      AppLogger.error('Error processing recipe', e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error processing recipe: $e'),
+          const SnackBar(
+            content: Text('Failed to process recipe. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );

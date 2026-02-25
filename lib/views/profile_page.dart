@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/cloudinary_service.dart';
+import '../services/app_logger.dart';
 import '../model/recipe.dart';
 import 'edit_profile_page.dart';
 import '../model/user.dart';
@@ -135,8 +136,9 @@ class _ProfilePageState extends State<ProfilePage> {
                             backgroundColor: Colors.white,
                             child: CircleAvatar(
                               radius: 52,
-                              backgroundImage: user?.photoURL != null
-                                  ? NetworkImage(user!.photoURL!)
+                              backgroundImage:
+                                  (user != null && user.photoURL != null)
+                                  ? NetworkImage(user.photoURL!)
                                   : const NetworkImage(
                                       "https://via.placeholder.com/150",
                                     ),
@@ -281,12 +283,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
           GestureDetector(
             onTap: () {
+              final currentUser = FirebaseAuth.instance.currentUser;
+              if (currentUser == null) return;
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => FollowListPage(
-                    userId: FirebaseAuth.instance.currentUser!.uid,
-                  ),
+                  builder: (_) => FollowListPage(userId: currentUser.uid),
                 ),
               );
             },
@@ -295,12 +297,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
           GestureDetector(
             onTap: () {
+              final currentUser = FirebaseAuth.instance.currentUser;
+              if (currentUser == null) return;
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => FollowListPage(
-                    userId: FirebaseAuth.instance.currentUser!.uid,
-                  ),
+                  builder: (_) => FollowListPage(userId: currentUser.uid),
                 ),
               );
             },
@@ -384,6 +386,15 @@ class _ProfilePageState extends State<ProfilePage> {
       await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
         {'profileImageUrl': uploadedUrl},
       );
+    } catch (e) {
+      AppLogger.error('Profile image upload failed', e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to update profile image. Please try again.'),
+          ),
+        );
+      }
     } finally {
       if (mounted) Navigator.pop(context);
       setState(() {});
@@ -393,12 +404,16 @@ class _ProfilePageState extends State<ProfilePage> {
   // Recipes Tab
   Widget _buildFoodGrid() {
     final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const Center(child: Text('Not signed in.'));
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('recipes')
-          .where('authorId', isEqualTo: user!.uid)
+          .where('authorId', isEqualTo: user.uid)
           .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text('Something went wrong.'));
+        }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -435,12 +450,16 @@ class _ProfilePageState extends State<ProfilePage> {
   // Liked Tab
   Widget _buildLikedGrid() {
     final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const Center(child: Text('Not signed in.'));
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('recipes')
-          .where('likedBy', arrayContains: user!.uid)
+          .where('likedBy', arrayContains: user.uid)
           .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text('Something went wrong.'));
+        }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -588,10 +607,13 @@ class _ProfileRecipeCardState extends State<_ProfileRecipeCard> {
         ).showSnackBar(const SnackBar(content: Text('Appeal submitted.')));
       }
     } catch (e) {
+      AppLogger.error('Failed to submit appeal', e);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to submit appeal: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to submit appeal. Please try again.'),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _appealSubmitting = false);
@@ -601,9 +623,9 @@ class _ProfileRecipeCardState extends State<_ProfileRecipeCard> {
   @override
   void initState() {
     super.initState();
-    _isLiked = widget.recipe.likedBy.contains(
-      FirebaseAuth.instance.currentUser!.uid,
-    );
+    final currentUser = FirebaseAuth.instance.currentUser;
+    _isLiked =
+        currentUser != null && widget.recipe.likedBy.contains(currentUser.uid);
     _likesCount = widget.recipe.likes;
   }
 
@@ -622,22 +644,28 @@ class _ProfileRecipeCardState extends State<_ProfileRecipeCard> {
       _isLiked = !_isLiked;
     });
 
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
     try {
       await LikeService().toggleLike(
         widget.recipe.id,
-        FirebaseAuth.instance.currentUser!.uid,
-        FirebaseAuth.instance.currentUser!.displayName ?? "Unknown",
-        FirebaseAuth.instance.currentUser!.photoURL ?? "",
+        currentUser.uid,
+        currentUser.displayName ?? "Unknown",
+        currentUser.photoURL ?? "",
       );
     } catch (e) {
+      AppLogger.error('Failed to update like', e);
       setState(() {
         _isLiked = originalIsLiked;
         _likesCount = originalLikesCount;
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update like: $e'),
+          const SnackBar(
+            content: Text('Failed to update like. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );

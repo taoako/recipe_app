@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'app_logger.dart';
 
 class FollowService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -72,15 +73,16 @@ class FollowService {
               "read": false,
             })
             .catchError((e) {
-              print("Notification error: $e");
+              AppLogger.error('Follow notification error', e);
+              return FirebaseFirestore.instance.doc('_dummy/_dummy');
             });
       }
 
       await batch.commit();
       return !isFollowing;
     } on FirebaseException catch (e) {
-      print('Firestore error: ${e.code} - ${e.message}');
-      throw Exception('Firestore error: ${e.message}');
+      AppLogger.error('Firestore error: ${e.code}', e);
+      throw Exception('A database error occurred. Please try again.');
     } catch (e) {
       rethrow;
     } finally {

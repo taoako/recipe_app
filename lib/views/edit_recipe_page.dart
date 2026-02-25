@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../services/cloudinary_service.dart';
+import '../services/app_logger.dart';
+import '../services/input_validator.dart';
 
 class EditRecipePage extends StatefulWidget {
   final String recipeId;
@@ -125,6 +127,24 @@ class _EditRecipePageState extends State<EditRecipePage> {
   }
 
   Future<void> _saveRecipe() async {
+    // Validate inputs before saving
+    final titleError = InputValidator.validateTitle(foodNameController.text);
+    if (titleError != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(titleError)));
+      return;
+    }
+    final descError = InputValidator.validateDescription(
+      descriptionController.text,
+    );
+    if (descError != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(descError)));
+      return;
+    }
+
     setState(() => _isUploading = true);
     try {
       // Cover image
@@ -179,9 +199,14 @@ class _EditRecipePageState extends State<EditRecipePage> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() => _isUploading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to update: $e')));
+      AppLogger.error('Recipe update failed', e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to update recipe. Please try again.'),
+          ),
+        );
+      }
     }
   }
 

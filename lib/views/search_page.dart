@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../model/recipe.dart';
 import 'recipe_detail_page.dart';
 import '../services/like_services.dart';
+import '../services/app_logger.dart';
+import '../services/input_validator.dart';
 
 class SearchPage extends StatefulWidget {
   final String userId;
@@ -20,7 +22,10 @@ class _SearchPageState extends State<SearchPage> {
 
   // Fetch recipes from Firestore and perform local fuzzy matching.
   Future<void> searchRecipes(String q) async {
-    final String trimmed = q.trim();
+    final String trimmed = InputValidator.sanitize(
+      q,
+      InputValidator.maxSearchQueryLength,
+    );
     if (trimmed.isEmpty) return;
 
     setState(() {
@@ -29,11 +34,13 @@ class _SearchPageState extends State<SearchPage> {
     });
 
     try {
+      // Use server-side filtering: only fetch visible, non-archived recipes
       final snapshot = await FirebaseFirestore.instance
           .collection('recipes')
+          .where('isHidden', isEqualTo: false)
           .get();
 
-      print('Fetched ${snapshot.docs.length} recipes');
+      AppLogger.debug('Fetched ${snapshot.docs.length} visible recipes');
       final List<Map<String, dynamic>> matches = [];
       final searchLower = trimmed.toLowerCase();
 
@@ -45,7 +52,7 @@ class _SearchPageState extends State<SearchPage> {
         final title = (data['title'] ?? '').toString().toLowerCase();
         if (title == searchLower) {
           matches.add(data);
-          print('Exact match: $title');
+          AppLogger.debug('Exact match: $title');
         }
       }
 
@@ -58,7 +65,7 @@ class _SearchPageState extends State<SearchPage> {
           final title = (data['title'] ?? '').toString().toLowerCase();
           if (title.contains(searchLower)) {
             matches.add(data);
-            print('Substring match: $title');
+            AppLogger.debug('Substring match: $title');
           }
         }
       }
@@ -77,22 +84,20 @@ class _SearchPageState extends State<SearchPage> {
             // Accept if Levenshtein distance is small relative to word length
             if (dist <= 3 || dist <= word.length ~/ 2) {
               matches.add(data);
-              print('Fuzzy match: $title (distance: $dist)');
+              AppLogger.debug('Fuzzy match: $title (distance: $dist)');
               break;
             }
           }
         }
       }
 
-      print('Found ${matches.length} total matches');
+      AppLogger.debug('Found ${matches.length} total matches');
 
-      // Remove hidden recipes from results unless the current user is the author
+      // Remove hidden/archived recipes from results unless the current user is the author
       final currentUser = FirebaseAuth.instance.currentUser;
       final currentUid = currentUser?.uid;
 
       final visibleMatches = matches.where((data) {
-        final isHiddenRaw = data['isHidden'];
-        final bool isHidden = isHiddenRaw == true || isHiddenRaw == 'true';
         final isArchivedRaw = data['isArchived'];
         final bool isArchived =
             isArchivedRaw == true || isArchivedRaw == 'true';
@@ -101,9 +106,7 @@ class _SearchPageState extends State<SearchPage> {
         if (isArchived && !(currentUid != null && authorId == currentUid)) {
           return false;
         }
-        if (!isHidden) return true;
-        // allow owners to see their own hidden recipes
-        return currentUid != null && authorId == currentUid;
+        return true;
       }).toList();
 
       setState(() {
@@ -111,10 +114,18 @@ class _SearchPageState extends State<SearchPage> {
         isLoading = false;
       });
     } catch (e) {
-      print('Search error: $e');
+      AppLogger.error('Search failed', e);
       setState(() {
         isLoading = false;
       });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Search failed. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -295,8 +306,8 @@ class _FoodGridItemState extends State<_FoodGridItem> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update like: $e'),
+          const SnackBar(
+            content: Text('Failed to update like. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );

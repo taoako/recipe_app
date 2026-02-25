@@ -1,5 +1,6 @@
 import 'package:final_proj/services/follow_and_unfollow_services.dart';
 import 'package:final_proj/services/user_service.dart';
+import 'package:final_proj/services/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../model/recipe.dart';
@@ -46,7 +47,7 @@ class RecipeDetailPage extends StatelessWidget {
           currentUser.photoURL ?? "",
         );
       } catch (e) {
-        print('Error ensuring user document: $e');
+        AppLogger.error('Error ensuring user document', e);
       }
     });
 
@@ -82,15 +83,15 @@ class RecipeDetailPage extends StatelessWidget {
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) =>
                               Container(
-                            color: Colors.grey.shade300,
-                            child: const Center(
-                              child: Icon(
-                                Icons.broken_image,
-                                size: 48,
-                                color: Colors.grey,
+                                color: Colors.grey.shade300,
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.broken_image,
+                                    size: 48,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
                         )
                       : Container(color: Colors.grey.shade300),
                   Container(
@@ -124,7 +125,11 @@ class RecipeDetailPage extends StatelessWidget {
                       ),
                       Row(
                         children: [
-                          const Icon(Icons.timer, color: Colors.orange, size: 18),
+                          const Icon(
+                            Icons.timer,
+                            color: Colors.orange,
+                            size: 18,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             "${recipe.cookingDuration} mins",
@@ -259,7 +264,11 @@ class RecipeDetailPage extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 10),
                       child: Row(
                         children: [
-                          const Icon(Icons.circle, size: 8, color: Colors.orange),
+                          const Icon(
+                            Icons.circle,
+                            size: 8,
+                            color: Colors.orange,
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -345,17 +354,17 @@ class RecipeDetailPage extends StatelessWidget {
                                     errorBuilder:
                                         (context, error, stackTrace) =>
                                             Container(
-                                      height: 180,
-                                      width: double.infinity,
-                                      color: Colors.grey.shade300,
-                                      child: const Center(
-                                        child: Icon(
-                                          Icons.broken_image,
-                                          size: 48,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                    ),
+                                              height: 180,
+                                              width: double.infinity,
+                                              color: Colors.grey.shade300,
+                                              child: const Center(
+                                                child: Icon(
+                                                  Icons.broken_image,
+                                                  size: 48,
+                                                  color: Colors.grey,
+                                                ),
+                                              ),
+                                            ),
                                   ),
                                 ),
                             ],
@@ -431,22 +440,29 @@ class _FollowButtonState extends State<_FollowButton> {
                               widget.profileImageUrl,
                             );
                           } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error: $e'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Something went wrong. Please try again.',
+                                  ),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
                           } finally {
                             if (mounted) setState(() => _isLoading = false);
                           }
                         },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        isFollowing ? Colors.grey.shade400 : Colors.orange,
+                    backgroundColor: isFollowing
+                        ? Colors.grey.shade400
+                        : Colors.orange,
                     foregroundColor: Colors.white,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 8,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),

@@ -228,7 +228,9 @@ class _HomePageState extends State<HomePage> {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
+              return const Center(
+                child: Text('Something went wrong. Please try again.'),
+              );
             }
             if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
               return Center(
@@ -258,6 +260,8 @@ class _HomePageState extends State<HomePage> {
                 .where(
                   (recipe) =>
                       following.contains(recipe.authorId) &&
+                      // Exclude hidden recipes unless viewing own
+                      (!recipe.isHidden || recipe.authorId == userId) &&
                       // Exclude archived recipes unless viewing own
                       (!recipe.isArchived || recipe.authorId == userId) &&
                       (selectedCategory == "All" ||
@@ -313,7 +317,9 @@ class _HomePageState extends State<HomePage> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          return const Center(
+            child: Text('Something went wrong. Please try again.'),
+          );
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const Center(child: Text('No recipes found'));
@@ -421,8 +427,8 @@ class _FoodGridItemState extends State<_FoodGridItem> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update like: $e'),
+          const SnackBar(
+            content: Text('Failed to update like. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );
