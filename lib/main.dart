@@ -7,6 +7,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'onboarding.dart';
 import 'auth/login.dart';
 import 'main_page.dart';
+import 'services/google_auth_service.dart';
 import 'views/upload_page.dart';
 import 'views/notification_page.dart';
 import 'views/profile_page.dart';
@@ -18,6 +19,7 @@ void main() async {
   await dotenv.load(fileName: '.env');
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await GoogleAuthService.initialize();
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: true,
     sslEnabled: true,

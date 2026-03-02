@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'reset_password_page.dart';
-import 'package:uni_links/uni_links.dart';
+import 'package:app_links/app_links.dart';
 import 'dart:async';
 
 class ForgotPasswordPage extends StatefulWidget {
@@ -31,8 +31,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   }
 
   void _handleIncomingLinks() async {
-    _sub = linkStream.listen((String? link) {
-      if (link != null && link.contains("resetPassword")) {
+    final appLinks = AppLinks();
+
+    _sub = appLinks.uriLinkStream.listen((Uri uri) {
+      final link = uri.toString();
+      if (link.contains("resetPassword")) {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => ResetPasswordPage(link: link)),
@@ -40,12 +43,17 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       }
     });
 
-    final initialLink = await getInitialLink();
-    if (initialLink != null && initialLink.contains("resetPassword")) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => ResetPasswordPage(link: initialLink)),
-      );
+    final initialUri = await appLinks.getInitialLink();
+    if (initialUri != null) {
+      final initialLink = initialUri.toString();
+      if (initialLink.contains("resetPassword")) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ResetPasswordPage(link: initialLink),
+          ),
+        );
+      }
     }
   }
 

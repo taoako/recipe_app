@@ -1,7 +1,14 @@
+import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login.dart';
+import 'email_verification_page.dart';
+import '../main_page.dart';
+import '../views/admin_page.dart';
+import '../services/google_auth_service.dart';
+import '../services/app_logger.dart';
+import '../services/input_validator.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -15,42 +22,144 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   String? _error;
 
   Future<void> _signUp() async {
+    final username = _usernameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    final usernameError = InputValidator.validateUsername(username);
+    if (usernameError != null) {
+      setState(() => _error = usernameError);
+      return;
+    }
+
+    if (!InputValidator.isValidEmail(email)) {
+      setState(() => _error = 'Enter a valid email address');
+      return;
+    }
+
+    final passwordError = InputValidator.validatePassword(password);
+    if (passwordError != null) {
+      setState(() => _error = passwordError);
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _error = null;
     });
     try {
       final credential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
+          .createUserWithEmailAndPassword(email: email, password: password);
 
       final user = credential.user;
       if (user != null) {
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'username': _usernameController.text.trim(),
-          'email': _emailController.text.trim(),
+          'username': username,
+          'email': email,
+          'emailVerified': false,
         });
-        await user.updateDisplayName(_usernameController.text.trim());
+        await user.updateDisplayName(username);
+        // Send verification email with an explicit HTTPS action URL so the
+        // email contains a real clickable link instead of the app deep-link scheme.
+        await user.sendEmailVerification(
+          ActionCodeSettings(
+            url: 'https://ingrdnts-f505f.firebaseapp.com',
+            handleCodeInApp: false,
+          ),
+        );
+        // Log signup success
+        unawaited(
+          AppLogger.logInfo(
+            LogEvent.signupSuccess,
+            'New account registered',
+            userId: user.uid,
+            metadata: {'username': username},
+          ),
+        );
       }
 
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        MaterialPageRoute(
+          builder: (context) => EmailVerificationPage(email: email),
+        ),
       );
     } on FirebaseAuthException catch (e) {
+      // Log signup failure
+      unawaited(
+        AppLogger.logWarning(
+          LogEvent.signupFailure,
+          'Signup failed: ${e.code}',
+          metadata: {'errorCode': e.code},
+        ),
+      );
       setState(() {
-        _error = e.message;
+        switch (e.code) {
+          case 'email-already-in-use':
+            _error =
+                'An account with this email already exists. Please log in.';
+            break;
+          case 'invalid-email':
+            _error = 'The email address is not valid.';
+            break;
+          case 'weak-password':
+            _error = 'Password is too weak. Use at least 8 characters.';
+            break;
+          case 'operation-not-allowed':
+            _error = 'Email/password sign-up is not enabled. Contact support.';
+            break;
+          default:
+            _error = e.message ?? 'Sign-up failed. Please try again.';
+        }
       });
     } finally {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _signUpWithGoogle() async {
+    setState(() {
+      _isGoogleLoading = true;
+      _error = null;
+    });
+
+    try {
+      final userCredential = await GoogleAuthService.signInWithGoogle();
+
+      // User cancelled the Google sign-in flow
+      if (userCredential == null) {
+        setState(() => _isGoogleLoading = false);
+        return;
+      }
+
+      if (!mounted) return;
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .get();
+
+      final userData = userDoc.data();
+      final isAdmin = userData?['isAdmin'] ?? false;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => isAdmin ? const AdminPage() : const MainPage(),
+        ),
+      );
+    } catch (e) {
+      AppLogger.error('Google sign-up failed', e);
+      setState(() => _error = 'Google sign-up failed. Please try again.');
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -193,6 +302,64 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                     const SizedBox(height: 20),
 
+                    // ── Or divider ──
+                    Row(
+                      children: [
+                        const Expanded(child: Divider(color: Colors.grey)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            "OR",
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const Expanded(child: Divider(color: Colors.grey)),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // 🔵 Google Sign-Up Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          side: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        onPressed: (_isGoogleLoading || _isLoading)
+                            ? null
+                            : _signUpWithGoogle,
+                        icon: _isGoogleLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.g_mobiledata,
+                                size: 28,
+                                color: Colors.red,
+                              ),
+                        label: const Text(
+                          "Continue with Google",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
                     // Back to Login
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -203,7 +370,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => const LoginScreen()),
+                                builder: (context) => const LoginScreen(),
+                              ),
                             );
                           },
                           child: const Text(

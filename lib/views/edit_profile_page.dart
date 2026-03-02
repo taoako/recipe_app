@@ -47,6 +47,20 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
     if (pickedFile != null) {
+      final bytes = await pickedFile.readAsBytes();
+      final imageError = InputValidator.validateImageUpload(
+        fileName: pickedFile.name,
+        fileSizeBytes: bytes.length,
+        fileBytes: bytes,
+      );
+      if (imageError != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(imageError)));
+        }
+        return;
+      }
       setState(() => _imageFile = File(pickedFile.path));
     }
   }

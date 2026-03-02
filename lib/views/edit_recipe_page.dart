@@ -82,6 +82,20 @@ class _EditRecipePageState extends State<EditRecipePage> {
       imageQuality: 80,
     );
     if (x != null) {
+      final bytes = await x.readAsBytes();
+      final imageError = InputValidator.validateImageUpload(
+        fileName: x.name,
+        fileSizeBytes: bytes.length,
+        fileBytes: bytes,
+      );
+      if (imageError != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(imageError)));
+        }
+        return;
+      }
       setState(() {
         coverImageXFile = x; // ✅ update XFile instead of File
       });
@@ -93,7 +107,23 @@ class _EditRecipePageState extends State<EditRecipePage> {
       source: ImageSource.gallery,
       imageQuality: 80,
     );
-    if (x != null) setState(() => stepImageFiles[index] = File(x.path));
+    if (x != null) {
+      final bytes = await x.readAsBytes();
+      final imageError = InputValidator.validateImageUpload(
+        fileName: x.name,
+        fileSizeBytes: bytes.length,
+        fileBytes: bytes,
+      );
+      if (imageError != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(imageError)));
+        }
+        return;
+      }
+      setState(() => stepImageFiles[index] = File(x.path));
+    }
   }
 
   void addIngredient() {

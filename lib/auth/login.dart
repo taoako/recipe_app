@@ -1,10 +1,15 @@
+import 'dart:async' show unawaited;
 import 'package:final_proj/auth/forgot_password_page.dart';
 import 'package:final_proj/auth/signup.dart';
+import 'package:final_proj/auth/email_verification_page.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../main_page.dart';
 import '../views/admin_page.dart';
+import '../services/google_auth_service.dart';
+import '../services/app_logger.dart';
+import '../services/input_validator.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,19 +22,161 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   String? _error;
 
   Future<void> _login() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (!InputValidator.isValidEmail(email)) {
+      setState(() => _error = 'Enter a valid email address');
+      return;
+    }
+
+    final passwordError = InputValidator.validatePassword(password);
+    if (passwordError != null) {
+      setState(() => _error = passwordError);
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
+    // Log every login attempt (email masked for privacy)
+    unawaited(
+      AppLogger.logInfo(
+        LogEvent.loginAttempt,
+        'Login attempt',
+        metadata: {
+          'emailDomain': email.contains('@')
+              ? email.split('@').last
+              : 'unknown',
+        },
+      ),
+    );
+
     try {
-      final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      final userCredential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
+
+      if (!mounted) return;
+
+      // Block login if email hasn't been verified yet
+      if (!userCredential.user!.emailVerified) {
+        await FirebaseAuth.instance.signOut();
+        // Log access violation — account exists but email unverified
+        unawaited(
+          AppLogger.logWarning(
+            LogEvent.accessViolation,
+            'Login blocked: email not verified',
+            userId: userCredential.user!.uid,
+            metadata: {'reason': 'email_not_verified'},
+          ),
+        );
+        if (!mounted) return;
+        setState(
+          () => _error =
+              'Please verify your email before logging in. '
+              'Check your inbox for the verification link.',
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Email not verified. Tap to resend.'),
+              backgroundColor: Colors.orange,
+              action: SnackBarAction(
+                label: 'Resend',
+                textColor: Colors.white,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EmailVerificationPage(email: email),
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .get();
+
+      final userData = userDoc.data();
+      final isAdmin = userData?['isAdmin'] ?? false;
+
+      // Log successful login
+      unawaited(
+        AppLogger.logInfo(
+          LogEvent.loginSuccess,
+          'Login successful',
+          userId: userCredential.user!.uid,
+          metadata: {'role': isAdmin ? 'admin' : 'user'},
+        ),
       );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => isAdmin ? const AdminPage() : const MainPage(),
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      // Log login failure (no password, no sensitive info)
+      unawaited(
+        AppLogger.logWarning(
+          LogEvent.loginFailure,
+          'Login failed: ${e.code}',
+          metadata: {'errorCode': e.code},
+        ),
+      );
+      setState(() {
+        switch (e.code) {
+          case 'user-not-found':
+          case 'wrong-password':
+          case 'invalid-credential':
+            _error = 'Incorrect email or password. Please try again.';
+            break;
+          case 'user-disabled':
+            _error = 'This account has been disabled. Contact support.';
+            break;
+          case 'too-many-requests':
+            _error = 'Too many failed attempts. Please try again later.';
+            break;
+          case 'invalid-email':
+            _error = 'The email address is not valid.';
+            break;
+          default:
+            _error = e.message ?? 'Login failed. Please try again.';
+        }
+      });
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loginWithGoogle() async {
+    setState(() {
+      _isGoogleLoading = true;
+      _error = null;
+    });
+
+    try {
+      final userCredential = await GoogleAuthService.signInWithGoogle();
+
+      // User cancelled the Google sign-in flow
+      if (userCredential == null) {
+        setState(() => _isGoogleLoading = false);
+        return;
+      }
 
       if (!mounted) return;
 
@@ -47,10 +194,11 @@ class _LoginScreenState extends State<LoginScreen> {
           builder: (context) => isAdmin ? const AdminPage() : const MainPage(),
         ),
       );
-    } on FirebaseAuthException catch (e) {
-      setState(() => _error = e.message);
+    } catch (e) {
+      AppLogger.error('Google sign-in failed', e);
+      setState(() => _error = 'Google sign-in failed. Please try again.');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -67,10 +215,7 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // 🔸 Logo Section
-              Image.asset(
-                'assets/logo.png',
-                height: screen.width * 0.3,
-              ),
+              Image.asset('assets/logo.png', height: screen.width * 0.3),
               const SizedBox(height: 20),
 
               const Text(
@@ -90,7 +235,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
               // 🟠 Login Card
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 30),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 25,
+                  vertical: 30,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
@@ -184,7 +332,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         onPressed: _isLoading ? null : _login,
                         child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
                             : const Text(
                                 "Login",
                                 style: TextStyle(
@@ -198,7 +348,63 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
+
+              // ── Or divider ──
+              Row(
+                children: [
+                  const Expanded(child: Divider(color: Colors.grey)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      "OR",
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const Expanded(child: Divider(color: Colors.grey)),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // 🔵 Google Sign-In Button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    side: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  onPressed: (_isGoogleLoading || _isLoading)
+                      ? null
+                      : _loginWithGoogle,
+                  icon: _isGoogleLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(
+                          Icons.g_mobiledata,
+                          size: 28,
+                          color: Colors.red,
+                        ),
+                  label: const Text(
+                    "Continue with Google",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
 
               // 🔹 Signup Redirect
               Row(
@@ -209,7 +415,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     onTap: () {
                       Navigator.pushReplacement(
                         context,
-                        MaterialPageRoute(builder: (context) => const SignUpScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const SignUpScreen(),
+                        ),
                       );
                     },
                     child: const Text(

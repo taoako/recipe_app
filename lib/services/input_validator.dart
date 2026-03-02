@@ -1,32 +1,26 @@
-/// Utility helpers for input validation and sanitization.
+import 'dart:typed_data';
+
 class InputValidator {
   InputValidator._();
 
-  /// Maximum allowed length for a username.
   static const int maxUsernameLength = 30;
-
-  /// Maximum allowed length for an email address.
   static const int maxEmailLength = 254;
-
-  /// Maximum allowed length for a recipe title.
   static const int maxTitleLength = 100;
-
-  /// Maximum allowed length for a description.
   static const int maxDescriptionLength = 2000;
-
-  /// Maximum allowed length for a single ingredient.
   static const int maxIngredientLength = 200;
-
-  /// Maximum allowed length for a single step description.
   static const int maxStepLength = 1000;
-
-  /// Maximum allowed length for a search query.
   static const int maxSearchQueryLength = 100;
 
-  // ── Basic validators ──────────────────────────────────────────
+  /// Maximum allowed image upload size (5 MB).
+  static const int maxImageUploadBytes = 5 * 1024 * 1024;
+  static const Set<String> allowedImageExtensions = {
+    'jpg',
+    'jpeg',
+    'png',
+    'webp',
+  };
 
-  /// Returns `true` when [value] looks like a valid Firestore document ID
-  /// (non-empty, alphanumeric with limited special chars, max 128 chars).
+  // ── Basic validators ──────────────────────────────────────────
   static bool isValidDocumentId(String? value) {
     if (value == null || value.isEmpty || value.length > 128) return false;
     return RegExp(r'^[a-zA-Z0-9_\-]+$').hasMatch(value);
@@ -102,5 +96,62 @@ class InputValidator {
       return 'Password must be at least 6 characters';
     }
     return null;
+  }
+
+  /// Validates uploaded image by extension, size, and file signature.
+  static String? validateImageUpload({
+    required String fileName,
+    required int fileSizeBytes,
+    Uint8List? fileBytes,
+  }) {
+    final extension = _extractExtension(fileName);
+    if (!allowedImageExtensions.contains(extension)) {
+      return 'Only JPG, PNG, or WEBP images are allowed';
+    }
+
+    if (fileSizeBytes > maxImageUploadBytes) {
+      return 'Image must be 5 MB or smaller';
+    }
+
+    if (fileBytes != null && !_hasSupportedImageSignature(fileBytes)) {
+      return 'Invalid image file content';
+    }
+
+    return null;
+  }
+
+  static String _extractExtension(String fileName) {
+    final normalized = fileName.trim().toLowerCase();
+    final lastDot = normalized.lastIndexOf('.');
+    if (lastDot == -1 || lastDot == normalized.length - 1) return '';
+    return normalized.substring(lastDot + 1);
+  }
+
+  static bool _hasSupportedImageSignature(Uint8List bytes) {
+    if (bytes.length < 12) return false;
+
+    final isJpeg = bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF;
+
+    final isPng =
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47 &&
+        bytes[4] == 0x0D &&
+        bytes[5] == 0x0A &&
+        bytes[6] == 0x1A &&
+        bytes[7] == 0x0A;
+
+    final isWebp =
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50;
+
+    return isJpeg || isPng || isWebp;
   }
 }

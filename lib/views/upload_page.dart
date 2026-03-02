@@ -60,6 +60,19 @@ class _UploadPageState extends State<UploadPage> {
 
       if (xFile != null) {
         final bytes = await xFile.readAsBytes();
+        final imageError = InputValidator.validateImageUpload(
+          fileName: xFile.name,
+          fileSizeBytes: bytes.length,
+          fileBytes: bytes,
+        );
+        if (imageError != null) {
+          if (mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(imageError)));
+          }
+          return;
+        }
         setState(() => coverImageBytes = bytes);
       }
     } catch (e) {
@@ -83,6 +96,19 @@ class _UploadPageState extends State<UploadPage> {
 
       if (xFile != null) {
         final bytes = await xFile.readAsBytes();
+        final imageError = InputValidator.validateImageUpload(
+          fileName: xFile.name,
+          fileSizeBytes: bytes.length,
+          fileBytes: bytes,
+        );
+        if (imageError != null) {
+          if (mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(imageError)));
+          }
+          return;
+        }
         setState(() {
           if (index < stepImageBytesList.length) {
             stepImageBytesList[index] = bytes;

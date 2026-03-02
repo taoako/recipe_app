@@ -13,6 +13,7 @@ import '../model/user.dart';
 import 'follow_list_page.dart';
 import 'recipe_detail_page.dart';
 import '../services/like_services.dart';
+import '../services/input_validator.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -137,11 +138,21 @@ class _ProfilePageState extends State<ProfilePage> {
                             child: CircleAvatar(
                               radius: 52,
                               backgroundImage:
-                                  (user != null && user.photoURL != null)
+                                  (user != null &&
+                                      user.photoURL != null &&
+                                      user.photoURL!.isNotEmpty)
                                   ? NetworkImage(user.photoURL!)
-                                  : const NetworkImage(
-                                      "https://via.placeholder.com/150",
-                                    ),
+                                  : null,
+                              child:
+                                  (user == null ||
+                                      user.photoURL == null ||
+                                      user.photoURL!.isEmpty)
+                                  ? const Icon(
+                                      Icons.person,
+                                      size: 40,
+                                      color: Colors.grey,
+                                    )
+                                  : null,
                             ),
                           ),
                           Positioned(
@@ -370,6 +381,21 @@ class _ProfilePageState extends State<ProfilePage> {
       imageQuality: 80,
     );
     if (image == null || user == null) return;
+
+    final bytes = await image.readAsBytes();
+    final imageError = InputValidator.validateImageUpload(
+      fileName: image.name,
+      fileSizeBytes: bytes.length,
+      fileBytes: bytes,
+    );
+    if (imageError != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(imageError)));
+      }
+      return;
+    }
 
     showDialog(
       context: context,
