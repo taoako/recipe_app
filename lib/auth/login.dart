@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../main_page.dart';
 import '../views/admin_page.dart';
+import '../views/moderator_page.dart';
 import '../services/google_auth_service.dart';
 import '../services/app_logger.dart';
 import '../services/input_validator.dart';
@@ -112,6 +113,28 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final userData = userDoc.data();
       final isAdmin = userData?['isAdmin'] ?? false;
+      final role = userData?['role']?.toString() ?? 'user';
+      final isDisabled = userData?['isDisabled'] == true;
+
+      if (isDisabled) {
+        // Log blocked login attempt for disabled account
+        unawaited(
+          AppLogger.logWarning(
+            LogEvent.loginBlocked,
+            'Login blocked: account disabled',
+            userId: userCredential.user!.uid,
+            metadata: {'reason': 'account_disabled', 'method': 'email'},
+          ),
+        );
+        await FirebaseAuth.instance.signOut();
+        if (mounted) {
+          setState(
+            () => _error =
+                'This account has been disabled. Please contact support.',
+          );
+        }
+        return;
+      }
 
       // Log successful login
       unawaited(
@@ -119,14 +142,18 @@ class _LoginScreenState extends State<LoginScreen> {
           LogEvent.loginSuccess,
           'Login successful',
           userId: userCredential.user!.uid,
-          metadata: {'role': isAdmin ? 'admin' : 'user'},
+          metadata: {'role': role, 'method': 'email'},
         ),
       );
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => isAdmin ? const AdminPage() : const MainPage(),
+          builder: (context) {
+            if (isAdmin || role == 'admin') return const AdminPage();
+            if (role == 'moderator') return const ModeratorPage();
+            return const MainPage();
+          },
         ),
       );
     } on FirebaseAuthException catch (e) {
@@ -187,15 +214,58 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final userData = userDoc.data();
       final isAdmin = userData?['isAdmin'] ?? false;
+      final role = userData?['role']?.toString() ?? 'user';
+      final isDisabled = userData?['isDisabled'] == true;
+
+      if (isDisabled) {
+        // Log blocked login attempt for disabled account
+        unawaited(
+          AppLogger.logWarning(
+            LogEvent.loginBlocked,
+            'Login blocked: account disabled',
+            userId: userCredential.user!.uid,
+            metadata: {'reason': 'account_disabled', 'method': 'google'},
+          ),
+        );
+        await FirebaseAuth.instance.signOut();
+        if (mounted) {
+          setState(
+            () => _error =
+                'This account has been disabled. Please contact support.',
+          );
+        }
+        return;
+      }
+
+      // Log successful Google sign-in
+      unawaited(
+        AppLogger.logInfo(
+          LogEvent.loginSuccess,
+          'Google sign-in successful',
+          userId: userCredential.user!.uid,
+          metadata: {'role': role, 'method': 'google'},
+        ),
+      );
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => isAdmin ? const AdminPage() : const MainPage(),
+          builder: (context) {
+            if (isAdmin || role == 'admin') return const AdminPage();
+            if (role == 'moderator') return const ModeratorPage();
+            return const MainPage();
+          },
         ),
       );
     } catch (e) {
-      AppLogger.error('Google sign-in failed', e);
+      // Persist Google sign-in failure to Firestore logs (not just console)
+      unawaited(
+        AppLogger.logWarning(
+          LogEvent.loginFailure,
+          'Google sign-in failed: ${e.toString().split('\n').first}',
+          metadata: {'method': 'google'},
+        ),
+      );
       setState(() => _error = 'Google sign-in failed. Please try again.');
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);

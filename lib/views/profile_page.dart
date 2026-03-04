@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:io';
 import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,6 +13,7 @@ import 'edit_profile_page.dart';
 import '../model/user.dart';
 import 'follow_list_page.dart';
 import 'recipe_detail_page.dart';
+import 'report_problem_page.dart';
 import '../services/like_services.dart';
 import '../services/input_validator.dart';
 
@@ -87,16 +89,52 @@ class _ProfilePageState extends State<ProfilePage> {
             icon: const Icon(Icons.more_vert, color: Colors.white),
             onSelected: (value) async {
               if (value == 'logout') {
+                final uid = FirebaseAuth.instance.currentUser?.uid;
+                // Log logout BEFORE signing out (need auth to write)
+                await AppLogger.logInfo(
+                  LogEvent.logout,
+                  'User logged out',
+                  userId: uid,
+                );
                 await FirebaseAuth.instance.signOut();
                 if (mounted) {
                   Navigator.of(context).pushReplacementNamed("/login");
                 }
+              } else if (value == 'report') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ReportProblemPage()),
+                );
               }
             },
             itemBuilder: (context) => [
               const PopupMenuItem(
+                value: 'report',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.bug_report_outlined,
+                      color: Colors.orange,
+                      size: 18,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Report a Problem',
+                      style: TextStyle(color: Colors.black87),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
                 value: 'logout',
-                child: Text("Log Out", style: TextStyle(color: Colors.black87)),
+                child: Row(
+                  children: [
+                    Icon(Icons.logout_rounded, color: Colors.red, size: 18),
+                    SizedBox(width: 8),
+                    Text('Log Out', style: TextStyle(color: Colors.black87)),
+                  ],
+                ),
               ),
             ],
           ),
@@ -412,8 +450,20 @@ class _ProfilePageState extends State<ProfilePage> {
       await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
         {'profileImageUrl': uploadedUrl},
       );
+      unawaited(
+        AppLogger.logInfo(
+          LogEvent.imageUpload,
+          'Profile image updated',
+          userId: user.uid,
+        ),
+      );
     } catch (e) {
-      AppLogger.error('Profile image upload failed', e);
+      unawaited(
+        AppLogger.logError(
+          LogEvent.imageUpload,
+          'Profile image upload failed: ${e.toString().split('\n').first}',
+        ),
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -900,10 +950,21 @@ class _ProfileRecipeCardState extends State<_ProfileRecipeCard> {
                               ),
                             );
                           } else if (value == 'delete') {
+                            final recipeTitle = recipe.title;
                             await FirebaseFirestore.instance
                                 .collection('recipes')
                                 .doc(widget.recipeId)
                                 .delete();
+                            unawaited(
+                              AppLogger.logInfo(
+                                LogEvent.recipeAction,
+                                'Recipe deleted: $recipeTitle',
+                                metadata: {
+                                  'action': 'delete',
+                                  'recipeId': widget.recipeId,
+                                },
+                              ),
+                            );
                           } else if (value == 'appeal') {
                             await _submitAppeal(recipe);
                           }

@@ -1,6 +1,7 @@
 import 'package:final_proj/services/follow_and_unfollow_services.dart';
 import 'package:final_proj/services/user_service.dart';
 import 'package:final_proj/services/app_logger.dart';
+import 'package:final_proj/services/report_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../model/recipe.dart';
@@ -62,6 +63,32 @@ class RecipeDetailPage extends StatelessWidget {
             pinned: true,
             backgroundColor: Colors.orange.shade700,
             iconTheme: const IconThemeData(color: Colors.white),
+            actions: recipe.authorId != currentUid
+                ? [
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert, color: Colors.white),
+                      onSelected: (v) {
+                        if (v == 'report') showReportSheet(context, recipe);
+                      },
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'report',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.flag_outlined,
+                                color: Colors.red,
+                                size: 18,
+                              ),
+                              SizedBox(width: 8),
+                              Text('Report Post'),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ]
+                : null,
             flexibleSpace: FlexibleSpaceBar(
               title: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 2),
@@ -472,6 +499,198 @@ class _FollowButtonState extends State<_FollowButton> {
                 ),
         );
       },
+    );
+  }
+}
+
+// ── Report Post bottom sheet ──────────────────────────────────────────────────
+
+/// Shows the report post bottom sheet. Call from any route.
+void showReportSheet(BuildContext context, Recipe recipe) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _ReportSheet(recipe: recipe),
+  );
+}
+
+class _ReportSheet extends StatefulWidget {
+  const _ReportSheet({required this.recipe});
+  final Recipe recipe;
+
+  @override
+  State<_ReportSheet> createState() => _ReportSheetState();
+}
+
+class _ReportSheetState extends State<_ReportSheet> {
+  String? _selectedReason;
+  final _descCtrl = TextEditingController();
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _descCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_selectedReason == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please select a reason.')));
+      return;
+    }
+    setState(() => _submitting = true);
+    try {
+      await ReportService.reportPost(
+        postId: widget.recipe.id,
+        postTitle: widget.recipe.title,
+        postCoverImage: widget.recipe.coverImageUrl,
+        postAuthorId: widget.recipe.authorId,
+        postAuthorName: widget.recipe.authorName,
+        reason: _selectedReason!,
+        description: _descCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Report submitted. Thank you!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().contains('already_reported')
+          ? 'You have already reported this post.'
+          : 'Failed to submit report. Please try again.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Row(
+              children: [
+                Icon(Icons.flag_outlined, color: Colors.red),
+                SizedBox(width: 8),
+                Text(
+                  'Report Post',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '"${widget.recipe.title}"',
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Why are you reporting this?',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: ReportReason.all.map((r) {
+                final selected = _selectedReason == r;
+                return ChoiceChip(
+                  label: Text(ReportReason.label(r)),
+                  selected: selected,
+                  selectedColor: Colors.red.shade50,
+                  labelStyle: TextStyle(
+                    color: selected ? Colors.red.shade700 : Colors.black87,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: BorderSide(
+                      color: selected
+                          ? Colors.red.shade400
+                          : Colors.grey.shade300,
+                    ),
+                  ),
+                  onSelected: (_) => setState(() => _selectedReason = r),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _descCtrl,
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: 'Add more details (optional)',
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                icon: _submitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.send_rounded, size: 18),
+                label: Text(_submitting ? 'Submitting…' : 'Submit Report'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red.shade700,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: _submitting ? null : _submit,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

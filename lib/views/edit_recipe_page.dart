@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../model/recipe.dart';
+import 'dart:async' show unawaited;
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -225,11 +226,26 @@ class _EditRecipePageState extends State<EditRecipePage> {
             'cookingDuration': int.tryParse(durationController.text) ?? 0,
             'category': selectedCategory,
           });
+
+      unawaited(
+        AppLogger.logInfo(
+          LogEvent.recipeAction,
+          'Recipe updated: ${foodNameController.text.trim()}',
+          metadata: {'action': 'update', 'recipeId': widget.recipeId},
+        ),
+      );
+
       setState(() => _isUploading = false);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() => _isUploading = false);
-      AppLogger.error('Recipe update failed', e);
+      unawaited(
+        AppLogger.logError(
+          LogEvent.recipeAction,
+          'Recipe update failed: ${e.toString().split('\n').first}',
+          metadata: {'action': 'update_failed', 'recipeId': widget.recipeId},
+        ),
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

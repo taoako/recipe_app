@@ -22,6 +22,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
   int _archivedRecipes = 0;
   int _totalUsers = 0;
   int _pendingAppeals = 0;
+  int _pendingReports = 0;
   int _loginEventsToday = 0;
   int _newSignupsThisWeek = 0;
   int _errorsToday = 0;
@@ -43,30 +44,22 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
 
     try {
       final now = DateTime.now();
-      final todayStart = Timestamp.fromDate(
-        DateTime(now.year, now.month, now.day),
-      );
-      final weekStart = Timestamp.fromDate(
-        now.subtract(const Duration(days: 7)),
-      );
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final weekTs = Timestamp.fromDate(now.subtract(const Duration(days: 7)));
 
       final db = FirebaseFirestore.instance;
 
+      // Single-field count queries (no composite index needed) ─────────────
       final results = await Future.wait([
-        // 0: total recipes (not archived)
-        db
-            .collection('recipes')
-            .where('isArchived', isEqualTo: false)
-            .count()
-            .get(),
-        // 1: hidden recipes
+        // 0: total recipes
+        db.collection('recipes').count().get(),
+        // 1: hidden recipes (single equality — no composite index)
         db
             .collection('recipes')
             .where('isHidden', isEqualTo: true)
-            .where('isArchived', isEqualTo: false)
             .count()
             .get(),
-        // 2: archived recipes
+        // 2: archived recipes (single equality)
         db
             .collection('recipes')
             .where('isArchived', isEqualTo: true)
@@ -74,42 +67,48 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
             .get(),
         // 3: total users
         db.collection('users').count().get(),
-        // 4: pending appeals
+        // 4: pending appeals (single equality)
         db
             .collection('recipeAppeals')
             .where('status', isEqualTo: 'pending')
             .count()
             .get(),
-        // 5: login events today (DAU proxy)
+        // 5: pending post reports (single equality)
         db
-            .collection('app_logs')
-            .where('event', isEqualTo: LogEvent.loginSuccess)
-            .where('timestamp', isGreaterThanOrEqualTo: todayStart)
-            .count()
-            .get(),
-        // 6: new signups this week
-        db
-            .collection('app_logs')
-            .where('event', isEqualTo: LogEvent.signupSuccess)
-            .where('timestamp', isGreaterThanOrEqualTo: weekStart)
-            .count()
-            .get(),
-        // 7: errors today
-        db
-            .collection('app_logs')
-            .where('level', isEqualTo: LogLevel.error)
-            .where('timestamp', isGreaterThanOrEqualTo: todayStart)
+            .collection('postReports')
+            .where('status', isEqualTo: 'pending')
             .count()
             .get(),
       ]);
 
-      // Fetch recent error docs for the error list
-      final errorsSnap = await db
+      // Single time-range query on app_logs — avoids ALL composite indexes.
+      // We query only by timestamp (single field) and filter client-side.
+      final weekLogsSnap = await db
           .collection('app_logs')
-          .where('level', isEqualTo: LogLevel.error)
+          .where('timestamp', isGreaterThanOrEqualTo: weekTs)
           .orderBy('timestamp', descending: true)
-          .limit(10)
+          .limit(500)
           .get();
+
+      final weekDocs = weekLogsSnap.docs.map((d) => d.data()).toList();
+
+      int loginToday = 0;
+      int signupsWeek = 0;
+      int errorsToday = 0;
+      final List<Map<String, dynamic>> recentErrors = [];
+
+      for (final doc in weekDocs) {
+        final ts = doc['timestamp'];
+        final DateTime? dt = ts is Timestamp ? ts.toDate().toLocal() : null;
+        final isToday = dt != null && !dt.isBefore(todayStart);
+
+        if (doc['event'] == LogEvent.loginSuccess && isToday) loginToday++;
+        if (doc['event'] == LogEvent.signupSuccess) signupsWeek++;
+        if (doc['level'] == LogLevel.error) {
+          if (isToday) errorsToday++;
+          if (recentErrors.length < 10) recentErrors.add(doc);
+        }
+      }
 
       if (!mounted) return;
       setState(() {
@@ -118,10 +117,11 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
         _archivedRecipes = results[2].count ?? 0;
         _totalUsers = results[3].count ?? 0;
         _pendingAppeals = results[4].count ?? 0;
-        _loginEventsToday = results[5].count ?? 0;
-        _newSignupsThisWeek = results[6].count ?? 0;
-        _errorsToday = results[7].count ?? 0;
-        _recentErrors = errorsSnap.docs.map((d) => d.data()).toList();
+        _pendingReports = results[5].count ?? 0;
+        _loginEventsToday = loginToday;
+        _newSignupsThisWeek = signupsWeek;
+        _errorsToday = errorsToday;
+        _recentErrors = recentErrors;
         _loading = false;
       });
     } catch (e) {
@@ -210,6 +210,14 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
                         icon: Icons.flag_outlined,
                         color: _pendingAppeals > 0
                             ? Colors.red.shade600
+                            : Colors.green,
+                      ),
+                      _StatCard(
+                        label: 'Reported Posts',
+                        value: _pendingReports,
+                        icon: Icons.report_outlined,
+                        color: _pendingReports > 0
+                            ? Colors.deepOrange.shade700
                             : Colors.green,
                       ),
                     ],

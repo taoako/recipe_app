@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../auth/login.dart';
 import 'admin_analytics_page.dart';
-import 'admin_content_tab.dart';
-import 'admin_announcements_page.dart';
 import 'admin_users_page.dart';
+import 'admin_incident_response_page.dart';
 import 'admin_logs_page.dart';
 
 class AdminPage extends StatefulWidget {
@@ -25,19 +24,14 @@ class _AdminPageState extends State<AdminPage> {
       label: 'Dashboard',
     ),
     _NavDest(
-      icon: Icons.restaurant_menu_outlined,
-      selectedIcon: Icons.restaurant_menu,
-      label: 'Content',
-    ),
-    _NavDest(
-      icon: Icons.campaign_outlined,
-      selectedIcon: Icons.campaign_rounded,
-      label: 'Announce',
-    ),
-    _NavDest(
       icon: Icons.people_outline,
       selectedIcon: Icons.people_rounded,
       label: 'Users',
+    ),
+    _NavDest(
+      icon: Icons.security_outlined,
+      selectedIcon: Icons.security_rounded,
+      label: 'Incidents',
     ),
     _NavDest(
       icon: Icons.history_edu_outlined,
@@ -48,17 +42,15 @@ class _AdminPageState extends State<AdminPage> {
 
   static const _pages = [
     AdminAnalyticsPage(),
-    AdminContentTab(),
-    AdminAnnouncementsPage(),
     AdminUsersPage(),
+    AdminIncidentResponsePage(),
     AdminLogsPage(),
   ];
 
   static const _titles = [
     'Dashboard',
-    'Content Moderation',
-    'Announcements',
     'User Management',
+    'Incident Response',
     'System Logs',
   ];
 

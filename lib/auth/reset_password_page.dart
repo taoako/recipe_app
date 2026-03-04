@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async' show unawaited;
+import '../services/app_logger.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   final String? link;
@@ -62,6 +64,15 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         newPassword: newPassword,
       );
 
+      // Log successful password reset
+      unawaited(
+        AppLogger.logInfo(
+          LogEvent.passwordReset,
+          'Password reset confirmed',
+          metadata: {'action': 'confirmed'},
+        ),
+      );
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -72,8 +83,22 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
+      unawaited(
+        AppLogger.logWarning(
+          LogEvent.passwordReset,
+          'Password reset confirm failed: ${e.code}',
+          metadata: {'action': 'confirm_failed', 'errorCode': e.code},
+        ),
+      );
       setState(() => _error = e.message ?? "Password reset failed");
     } catch (e) {
+      unawaited(
+        AppLogger.logWarning(
+          LogEvent.passwordReset,
+          'Password reset invalid link',
+          metadata: {'action': 'invalid_link'},
+        ),
+      );
       setState(() => _error = "Invalid link format");
     } finally {
       setState(() => _isLoading = false);

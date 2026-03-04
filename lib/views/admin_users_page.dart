@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/app_logger.dart';
 
 /// Admin interface for searching users and managing their roles.
-/// Roles: user (default) | moderator | editor | admin
+/// Roles: user (default) | moderator | admin
 class AdminUsersPage extends StatefulWidget {
   const AdminUsersPage({super.key});
 
@@ -15,11 +15,11 @@ class AdminUsersPage extends StatefulWidget {
 class _AdminUsersPageState extends State<AdminUsersPage> {
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
-  String _roleFilter = 'all'; // all | user | moderator | editor | admin
+  String _roleFilter = 'all'; // all | user | moderator | admin
 
-  static const _roles = ['all', 'user', 'moderator', 'editor', 'admin'];
+  static const _roles = ['all', 'user', 'moderator', 'admin'];
 
-  static const _assignableRoles = ['user', 'moderator', 'editor'];
+  static const _assignableRoles = ['user', 'moderator'];
 
   static const _gradient = LinearGradient(
     colors: [Color(0xFFFFA726), Color(0xFFFF7043)],
@@ -38,21 +38,18 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   Color _roleColor(String role) => switch (role) {
     'admin' => const Color(0xFFFF7043),
     'moderator' => Colors.purple.shade600,
-    'editor' => Colors.indigo.shade600,
     _ => Colors.teal.shade600,
   };
 
   IconData _roleIcon(String role) => switch (role) {
     'admin' => Icons.admin_panel_settings,
     'moderator' => Icons.shield_outlined,
-    'editor' => Icons.edit_outlined,
     _ => Icons.person_outline,
   };
 
   String _roleLabel(String role) => switch (role) {
     'admin' => 'Admin',
     'moderator' => 'Moderator',
-    'editor' => 'Editor',
     _ => 'User',
   };
 
@@ -231,10 +228,161 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   }
 
   String _roleDescription(String role) => switch (role) {
-    'moderator' => 'Can hide/show recipes and review appeals',
-    'editor' => 'Can edit and feature community recipes',
+    'moderator' => 'Can review reported posts and send announcements',
     _ => 'Standard app user with no elevated permissions',
   };
+
+  // ── Disable / Enable ────────────────────────────────────────────────────────────
+
+  Future<void> _toggleDisable(
+    String userId,
+    String username,
+    bool isCurrentlyDisabled,
+  ) async {
+    final action = isCurrentlyDisabled ? 'enable' : 'disable';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(isCurrentlyDisabled ? 'Enable Account' : 'Disable Account'),
+        content: Text(
+          isCurrentlyDisabled
+              ? 'Allow @$username to log in again?'
+              : 'Prevent @$username from logging in? Their data will be kept.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isCurrentlyDisabled
+                  ? Colors.green
+                  : Colors.orange.shade700,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(isCurrentlyDisabled ? 'Enable' : 'Disable'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({
+        'isDisabled': !isCurrentlyDisabled,
+      });
+      await AppLogger.logInfo(
+        LogEvent.adminAction,
+        'Account ${action}d: $username',
+        metadata: {'action': '${action}_account', 'targetUserId': userId},
+      );
+      if (mounted) {
+        _snack(
+          '@$username has been ${action}d.',
+          isCurrentlyDisabled ? Colors.green : Colors.orange.shade700,
+        );
+      }
+    } catch (e) {
+      if (mounted) _snack('Failed to $action account: $e', Colors.red);
+    }
+  }
+
+  // ── Delete user ───────────────────────────────────────────────────────────────
+
+  Future<void> _deleteUser(String userId, String username) async {
+    // Step 1: type-to-confirm dialog
+    final confirmCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_rounded, color: Colors.red),
+              SizedBox(width: 8),
+              Text('Remove User'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'This will permanently delete @$username\'s profile and all their data. This cannot be undone.',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Type the username to confirm:',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: confirmCtrl,
+                decoration: InputDecoration(
+                  hintText: username,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onChanged: (_) => setS(() {}),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: confirmCtrl.text.trim() == username
+                  ? () => Navigator.pop(ctx, true)
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    confirmCtrl.dispose();
+    if (confirmed != true) return;
+
+    try {
+      // Delete Firestore user document (auth account deletion requires
+      // Admin SDK / Cloud Function — mark as deleted here for now)
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({
+        'isDisabled': true,
+        'isDeleted': true,
+        'deletedAt': FieldValue.serverTimestamp(),
+        'username': '[deleted]',
+        'email': '',
+        'profileImageUrl': '',
+      });
+      await AppLogger.logInfo(
+        LogEvent.adminAction,
+        'User account removed: $username',
+        metadata: {'action': 'delete_user', 'targetUserId': userId},
+      );
+      if (mounted) _snack('@$username has been removed.', Colors.red);
+    } catch (e) {
+      if (mounted) _snack('Failed to remove user: $e', Colors.red);
+    }
+  }
 
   void _snack(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -414,6 +562,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                     final role = data['role']?.toString() ?? 'user';
                     final profileImage =
                         data['profileImageUrl']?.toString() ?? '';
+                    final isDisabled = data['isDisabled'] == true;
 
                     return _UserCard(
                       uid: uid,
@@ -424,7 +573,11 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                       roleColor: _roleColor(role),
                       roleIcon: _roleIcon(role),
                       roleLabel: _roleLabel(role),
+                      isDisabled: isDisabled,
                       onChangeRole: () => _changeRole(uid, role, username),
+                      onToggleDisable: () =>
+                          _toggleDisable(uid, username, isDisabled),
+                      onDelete: () => _deleteUser(uid, username),
                     );
                   },
                 );
@@ -446,7 +599,10 @@ class _UserCard extends StatelessWidget {
   final Color roleColor;
   final IconData roleIcon;
   final String roleLabel;
+  final bool isDisabled;
   final VoidCallback onChangeRole;
+  final VoidCallback onToggleDisable;
+  final VoidCallback onDelete;
 
   const _UserCard({
     required this.uid,
@@ -457,7 +613,10 @@ class _UserCard extends StatelessWidget {
     required this.roleColor,
     required this.roleIcon,
     required this.roleLabel,
+    required this.isDisabled,
     required this.onChangeRole,
+    required this.onToggleDisable,
+    required this.onDelete,
   });
 
   @override
@@ -468,7 +627,7 @@ class _UserCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDisabled ? Colors.grey.shade100 : Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -578,39 +737,110 @@ class _UserCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (!isSelf && role != 'admin') ...[
-                  const SizedBox(height: 6),
-                  GestureDetector(
-                    onTap: onChangeRole,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFFA726), Color(0xFFFF7043)],
-                        ),
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFFFF7043,
-                            ).withValues(alpha: 0.3),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Text(
-                        'Change Role',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
+                if (isDisabled) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Text(
+                      'DISABLED',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red.shade700,
+                        letterSpacing: 0.5,
                       ),
                     ),
+                  ),
+                ],
+                if (!isSelf && role != 'admin') ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Change Role
+                      GestureDetector(
+                        onTap: onChangeRole,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFFFA726), Color(0xFFFF7043)],
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFFFF7043,
+                                ).withValues(alpha: 0.3),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Text(
+                            'Role',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      // Disable / Enable
+                      GestureDetector(
+                        onTap: onToggleDisable,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDisabled
+                                ? Colors.green.shade600
+                                : Colors.orange.shade700,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            isDisabled ? Icons.lock_open : Icons.block,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      // Delete
+                      GestureDetector(
+                        onTap: onDelete,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade600,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.delete_outline,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ],

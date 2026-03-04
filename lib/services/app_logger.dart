@@ -14,11 +14,15 @@ class LogEvent {
   static const String loginAttempt = 'login_attempt';
   static const String loginSuccess = 'login_success';
   static const String loginFailure = 'login_failure';
+  static const String loginBlocked = 'login_blocked';
   static const String signupSuccess = 'signup_success';
   static const String signupFailure = 'signup_failure';
+  static const String logout = 'logout';
+  static const String passwordReset = 'password_reset';
   static const String accessViolation = 'access_violation';
   static const String adminAction = 'admin_action';
   static const String userAction = 'user_action';
+  static const String recipeAction = 'recipe_action';
   static const String systemError = 'system_error';
   static const String imageUpload = 'image_upload';
 }

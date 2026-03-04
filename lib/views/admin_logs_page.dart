@@ -22,11 +22,16 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
     LogEvent.loginAttempt,
     LogEvent.loginSuccess,
     LogEvent.loginFailure,
+    LogEvent.loginBlocked,
     LogEvent.signupSuccess,
     LogEvent.signupFailure,
+    LogEvent.logout,
+    LogEvent.passwordReset,
     LogEvent.accessViolation,
     LogEvent.adminAction,
     LogEvent.userAction,
+    LogEvent.recipeAction,
+    LogEvent.imageUpload,
     LogEvent.systemError,
   ];
 
@@ -73,12 +78,21 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
       case LogEvent.loginFailure:
       case LogEvent.signupFailure:
         return Colors.red;
+      case LogEvent.loginBlocked:
       case LogEvent.accessViolation:
         return Colors.deepOrange;
       case LogEvent.adminAction:
         return Colors.purple;
       case LogEvent.loginAttempt:
         return Colors.blue;
+      case LogEvent.logout:
+        return Colors.blueGrey;
+      case LogEvent.passwordReset:
+        return Colors.teal;
+      case LogEvent.recipeAction:
+        return Colors.indigo;
+      case LogEvent.imageUpload:
+        return Colors.cyan;
       default:
         return Colors.grey;
     }
@@ -96,20 +110,25 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
   }
 
   // ── Firestore query ─────────────────────────────────────────────────────────
+  // Fetch all recent logs and filter client-side to avoid composite index
+  // requirements for level + event + orderBy combinations.
 
   Query<Map<String, dynamic>> get _query {
-    Query<Map<String, dynamic>> q = FirebaseFirestore.instance
+    return FirebaseFirestore.instance
         .collection('app_logs')
         .orderBy('timestamp', descending: true)
-        .limit(200);
+        .limit(500);
+  }
 
-    if (_levelFilter != 'all') {
-      q = q.where('level', isEqualTo: _levelFilter);
-    }
-    if (_eventFilter != 'all') {
-      q = q.where('event', isEqualTo: _eventFilter);
-    }
-    return q;
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _applyFilters(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    return docs.where((doc) {
+      final data = doc.data();
+      if (_levelFilter != 'all' && data['level'] != _levelFilter) return false;
+      if (_eventFilter != 'all' && data['event'] != _eventFilter) return false;
+      return true;
+    }).toList();
   }
 
   @override
@@ -245,7 +264,7 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
                   );
                 }
 
-                final docs = snapshot.data?.docs ?? [];
+                final docs = _applyFilters(snapshot.data?.docs ?? []);
                 if (docs.isEmpty) {
                   return Center(
                     child: Column(

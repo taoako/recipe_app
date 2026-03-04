@@ -586,6 +586,20 @@ class _FoodGridItemState extends State<_FoodGridItem> {
             Icon(Icons.favorite, color: Colors.red.shade400, size: 14),
             const SizedBox(width: 4),
             Text('$_likesCount likes', style: const TextStyle(fontSize: 12)),
+            const Spacer(),
+            // Report button — only shown for other people's posts
+            if (item.authorId != widget.userId)
+              GestureDetector(
+                onTap: () => showReportSheet(context, item),
+                child: Tooltip(
+                  message: 'Report post',
+                  child: Icon(
+                    Icons.flag_outlined,
+                    size: 16,
+                    color: Colors.grey.shade400,
+                  ),
+                ),
+              ),
           ],
         ),
       ],

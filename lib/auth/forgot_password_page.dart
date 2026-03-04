@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'reset_password_page.dart';
 import 'package:app_links/app_links.dart';
 import 'dart:async';
+import '../services/app_logger.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -86,11 +87,32 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         actionCodeSettings: actionCodeSettings,
       );
 
+      // Log successful password reset request
+      unawaited(
+        AppLogger.logInfo(
+          LogEvent.passwordReset,
+          'Password reset email requested',
+          metadata: {
+            'action': 'request',
+            'emailDomain': email.contains('@')
+                ? email.split('@').last
+                : 'unknown',
+          },
+        ),
+      );
+
       setState(() {
         _message =
             "Password reset email sent to $email.\nPlease check your inbox.";
       });
     } on FirebaseAuthException catch (e) {
+      unawaited(
+        AppLogger.logWarning(
+          LogEvent.passwordReset,
+          'Password reset request failed: ${e.code}',
+          metadata: {'action': 'request_failed', 'errorCode': e.code},
+        ),
+      );
       setState(() => _message = e.message);
     } finally {
       setState(() => _isLoading = false);

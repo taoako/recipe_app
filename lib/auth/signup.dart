@@ -23,9 +23,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _usernameController = TextEditingController();
   bool _isLoading = false;
   bool _isGoogleLoading = false;
+  bool _acceptedPolicy = false;
   String? _error;
 
   Future<void> _signUp() async {
+    if (!_acceptedPolicy) {
+      setState(
+        () =>
+            _error = 'You must accept the Terms of Service and Privacy Policy',
+      );
+      return;
+    }
+
     final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -125,6 +134,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> _signUpWithGoogle() async {
+    if (!_acceptedPolicy) {
+      setState(
+        () =>
+            _error = 'You must accept the Terms of Service and Privacy Policy',
+      );
+      return;
+    }
+
     setState(() {
       _isGoogleLoading = true;
       _error = null;
@@ -162,6 +179,135 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
+
+  // ── Policy dialog ─────────────────────────────────────────────────────────
+
+  void _showPolicyDialog(BuildContext context, String title, String content) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            color: Colors.deepOrange,
+          ),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Text(
+              content,
+              style: const TextStyle(fontSize: 13, height: 1.5),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Close',
+              style: TextStyle(
+                color: Colors.deepOrange,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static const String _termsOfService = '''
+Terms of Service — Ingrdnts Recipe App
+
+Effective Date: March 2026
+
+1. Acceptance of Terms
+By creating an account or using the Ingrdnts app, you agree to these Terms of Service. If you do not agree, do not use the app.
+
+2. User Accounts
+• You must provide accurate information when creating an account.
+• You are responsible for keeping your login credentials secure.
+• You must be at least 13 years old to create an account.
+• One person may only maintain one account.
+
+3. User-Generated Content
+• You retain ownership of recipes and content you post.
+• By posting, you grant Ingrdnts a non-exclusive license to display your content within the app.
+• You must not post content that is offensive, illegal, plagiarized, or violates others' intellectual property.
+• Moderators and administrators may remove content that violates these terms.
+
+4. Prohibited Conduct
+• Harassment, hate speech, or bullying of other users.
+• Posting spam, misleading, or fraudulent content.
+• Attempting to gain unauthorized access to other accounts or system resources.
+• Circumventing security features or moderation actions.
+• Impersonating other users or public figures.
+
+5. Account Suspension & Termination
+• Administrators may disable or delete accounts that violate these terms.
+• Repeated violations may result in permanent removal from the platform.
+
+6. Disclaimers
+• Recipes are user-submitted and not verified for safety or accuracy.
+• Follow food safety guidelines — Ingrdnts is not liable for adverse outcomes from recipes.
+• The app is provided "as is" without warranties of any kind.
+
+7. Changes to Terms
+We may update these terms from time to time. Continued use after changes constitutes acceptance of the new terms.
+''';
+
+  static const String _privacyAndPasswordPolicy = '''
+Privacy & Password Policy — Ingrdnts Recipe App
+
+Effective Date: March 2026
+
+── Privacy Policy ──
+
+1. Information We Collect
+• Account details: username, email address, profile image.
+• Content you create: recipes, comments, reports.
+• Usage data: login times, interactions (follows, likes), and activity logs.
+
+2. How We Use Your Information
+• To provide and personalize the app experience.
+• To enforce community guidelines and moderate content.
+• To maintain security and prevent abuse.
+• Activity logs are stored for administrative and security purposes.
+
+3. Data Sharing
+• We do not sell your personal data to third parties.
+• Data may be shared with Firebase (Google) for authentication and storage services.
+• We may disclose data if required by law.
+
+4. Data Retention
+• Your data is retained while your account is active.
+• You may request account deletion by contacting an administrator.
+• Activity logs may be retained for security auditing purposes.
+
+5. Your Rights
+• You can update your profile information at any time.
+• You can request access to or deletion of your data.
+
+── Password Policy ──
+
+To keep your account secure, passwords must meet the following requirements:
+
+• Minimum 8 characters in length.
+• At least one uppercase letter (A-Z).
+• At least one lowercase letter (a-z).
+• At least one number (0-9).
+• At least one special character (!@#\$%^&* etc.).
+
+Password Tips:
+• Never share your password with anyone.
+• Use a unique password not used on other websites.
+• Change your password immediately if you suspect unauthorized access.
+• Avoid using personal information (name, birthday) in your password.
+''';
 
   @override
   Widget build(BuildContext context) {
@@ -272,6 +418,77 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           style: const TextStyle(color: Colors.red),
                         ),
                       ),
+
+                    // ── Policy checkbox ──────────────────────────────────────
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: Checkbox(
+                            value: _acceptedPolicy,
+                            activeColor: Colors.deepOrange,
+                            onChanged: (v) =>
+                                setState(() => _acceptedPolicy = v ?? false),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Wrap(
+                            children: [
+                              const Text(
+                                'I agree to the ',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () => _showPolicyDialog(
+                                  context,
+                                  'Terms of Service',
+                                  _termsOfService,
+                                ),
+                                child: const Text(
+                                  'Terms of Service',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: Colors.deepOrange,
+                                    fontWeight: FontWeight.w600,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                              const Text(
+                                ' and ',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () => _showPolicyDialog(
+                                  context,
+                                  'Privacy & Password Policy',
+                                  _privacyAndPasswordPolicy,
+                                ),
+                                child: const Text(
+                                  'Privacy & Password Policy',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: Colors.deepOrange,
+                                    fontWeight: FontWeight.w600,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
 
                     // Sign Up Button
                     SizedBox(
