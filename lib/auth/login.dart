@@ -11,6 +11,7 @@ import '../views/moderator_page.dart';
 import '../services/google_auth_service.dart';
 import '../services/app_logger.dart';
 import '../services/input_validator.dart';
+import '../services/security_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -46,6 +47,27 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
 
+    // ── Check account lockout ────────────────────────────────────────────
+    final lockoutRemaining = await SecurityService.checkAccountLockout(email);
+    if (lockoutRemaining != null) {
+      final minutes = lockoutRemaining.inMinutes;
+      final seconds = lockoutRemaining.inSeconds % 60;
+      setState(() {
+        _isLoading = false;
+        _error =
+            'Account is temporarily locked due to too many failed attempts. '
+            'Please try again in ${minutes}m ${seconds}s.';
+      });
+      unawaited(
+        AppLogger.logWarning(
+          LogEvent.loginBlocked,
+          'Login blocked: account locked',
+          metadata: {'email': email, 'remainingMinutes': minutes},
+        ),
+      );
+      return;
+    }
+
     // Log every login attempt (email masked for privacy)
     unawaited(
       AppLogger.logInfo(
@@ -64,6 +86,9 @@ class _LoginScreenState extends State<LoginScreen> {
           .signInWithEmailAndPassword(email: email, password: password);
 
       if (!mounted) return;
+
+      // Reset failed attempts on successful auth
+      unawaited(SecurityService.resetFailedAttempts(email));
 
       // Block login if email hasn't been verified yet
       if (!userCredential.user!.emailVerified) {
@@ -136,6 +161,70 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // ── CAPTCHA for first-time login ──────────────────────────────────
+      final isFirst = await SecurityService.isFirstLogin(
+        userCredential.user!.uid,
+      );
+      if (isFirst && mounted) {
+        final captchaPassed = await SecurityService.showCaptchaDialog(context);
+        if (!captchaPassed) {
+          unawaited(
+            AppLogger.logWarning(
+              LogEvent.captchaFailed,
+              'CAPTCHA failed on first login',
+              userId: userCredential.user!.uid,
+            ),
+          );
+          await FirebaseAuth.instance.signOut();
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _error = 'CAPTCHA verification failed. Please try again.';
+            });
+          }
+          return;
+        }
+        unawaited(
+          AppLogger.logInfo(
+            LogEvent.captchaCompleted,
+            'CAPTCHA passed on first login',
+            userId: userCredential.user!.uid,
+          ),
+        );
+        await SecurityService.markFirstLoginComplete(userCredential.user!.uid);
+      }
+
+      // ── 2FA for admin / moderator (mandatory) or normal user (optional) ──
+      final isAdminOrMod = isAdmin || role == 'admin' || role == 'moderator';
+      final userTwoFAEnabled = userData?['twoFactorEnabled'] == true;
+      final needs2FA = isAdminOrMod || userTwoFAEnabled;
+
+      if (needs2FA && mounted) {
+        final twoFAPassed = await SecurityService.show2FADialog(
+          context,
+          userCredential.user!.uid,
+          userCredential.user!.email ?? email,
+        );
+        if (!twoFAPassed) {
+          unawaited(
+            AppLogger.logWarning(
+              LogEvent.twoFactorFailure,
+              '2FA verification failed/cancelled',
+              userId: userCredential.user!.uid,
+              metadata: {'role': role},
+            ),
+          );
+          await FirebaseAuth.instance.signOut();
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _error = '2FA verification failed. Please try again.';
+            });
+          }
+          return;
+        }
+      }
+
       // Log successful login
       unawaited(
         AppLogger.logInfo(
@@ -146,6 +235,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
 
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -157,12 +247,20 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     } on FirebaseAuthException catch (e) {
+      // ── Record failed attempt for lockout ─────────────────────────────
+      final attempts = await SecurityService.recordFailedAttempt(email);
+      final remaining = SecurityService.maxLoginAttempts - attempts;
+
       // Log login failure (no password, no sensitive info)
       unawaited(
         AppLogger.logWarning(
           LogEvent.loginFailure,
           'Login failed: ${e.code}',
-          metadata: {'errorCode': e.code},
+          metadata: {
+            'errorCode': e.code,
+            'failedAttempts': attempts,
+            'attemptsRemaining': remaining,
+          },
         ),
       );
       setState(() {
@@ -170,7 +268,14 @@ class _LoginScreenState extends State<LoginScreen> {
           case 'user-not-found':
           case 'wrong-password':
           case 'invalid-credential':
-            _error = 'Incorrect email or password. Please try again.';
+            if (remaining > 0) {
+              _error =
+                  'Incorrect email or password. $remaining attempt${remaining == 1 ? '' : 's'} remaining before lockout.';
+            } else {
+              _error =
+                  'Account locked due to too many failed attempts. '
+                  'Please try again in ${SecurityService.lockoutDuration.inMinutes} minutes.';
+            }
             break;
           case 'user-disabled':
             _error = 'This account has been disabled. Contact support.';
@@ -186,7 +291,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       });
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -237,6 +342,37 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // ── 2FA for admin / moderator (mandatory) or normal user (optional) ──
+      final isAdminOrModG = isAdmin || role == 'admin' || role == 'moderator';
+      final userTwoFAEnabledG = userData?['twoFactorEnabled'] == true;
+      final needs2FAG = isAdminOrModG || userTwoFAEnabledG;
+
+      if (needs2FAG && mounted) {
+        final twoFAPassed = await SecurityService.show2FADialog(
+          context,
+          userCredential.user!.uid,
+          userCredential.user!.email ?? '',
+        );
+        if (!twoFAPassed) {
+          unawaited(
+            AppLogger.logWarning(
+              LogEvent.twoFactorFailure,
+              '2FA verification failed/cancelled (Google)',
+              userId: userCredential.user!.uid,
+              metadata: {'role': role, 'method': 'google'},
+            ),
+          );
+          await FirebaseAuth.instance.signOut();
+          if (mounted) {
+            setState(() {
+              _isGoogleLoading = false;
+              _error = '2FA verification failed. Please try again.';
+            });
+          }
+          return;
+        }
+      }
+
       // Log successful Google sign-in
       unawaited(
         AppLogger.logInfo(
@@ -247,6 +383,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
 
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(

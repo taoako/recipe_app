@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/app_logger.dart';
+import '../services/security_service.dart';
 
 /// Admin interface for searching users and managing their roles.
 /// Roles: user (default) | moderator | admin
@@ -63,6 +64,13 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     final selfId = FirebaseAuth.instance.currentUser?.uid ?? '';
     if (userId == selfId) {
       _snack('You cannot change your own role.', Colors.orange);
+      return;
+    }
+
+    // ── Re-authenticate admin before changing role ────────────────────
+    final reAuthed = await SecurityService.showReAuthDialog(context);
+    if (!reAuthed) {
+      _snack('Admin verification required to change roles.', Colors.orange);
       return;
     }
 
@@ -239,6 +247,13 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     String username,
     bool isCurrentlyDisabled,
   ) async {
+    // ── Re-authenticate admin before disable/enable ──────────────────
+    final reAuthed = await SecurityService.showReAuthDialog(context);
+    if (!reAuthed) {
+      _snack('Admin verification required to manage accounts.', Colors.orange);
+      return;
+    }
+
     final action = isCurrentlyDisabled ? 'enable' : 'disable';
     final confirmed = await showDialog<bool>(
       context: context,
@@ -295,6 +310,13 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   // ── Delete user ───────────────────────────────────────────────────────────────
 
   Future<void> _deleteUser(String userId, String username) async {
+    // ── Re-authenticate admin before deletion ────────────────────────
+    final reAuthed = await SecurityService.showReAuthDialog(context);
+    if (!reAuthed) {
+      _snack('Admin verification required to delete users.', Colors.orange);
+      return;
+    }
+
     // Step 1: type-to-confirm dialog
     final confirmCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(

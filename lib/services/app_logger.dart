@@ -25,6 +25,15 @@ class LogEvent {
   static const String recipeAction = 'recipe_action';
   static const String systemError = 'system_error';
   static const String imageUpload = 'image_upload';
+  static const String bruteForceDetected = 'brute_force_detected';
+  static const String accountLocked = 'account_locked';
+  static const String twoFactorSent = '2fa_sent';
+  static const String twoFactorSuccess = '2fa_success';
+  static const String twoFactorFailure = '2fa_failure';
+  static const String captchaCompleted = 'captcha_completed';
+  static const String captchaFailed = 'captcha_failed';
+  static const String adminReAuth = 'admin_reauth';
+  static const String settingsChange = 'settings_change';
 }
 
 class AppLogger {

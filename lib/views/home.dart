@@ -110,9 +110,9 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 20),
 
             // Tabs
-            DefaultTabController(
-              length: 2,
-              child: Expanded(
+            Expanded(
+              child: DefaultTabController(
+                length: 2,
                 child: Column(
                   children: [
                     const TabBar(
@@ -280,14 +280,11 @@ class _HomePageState extends State<HomePage> {
               itemCount: recipes.length,
               itemBuilder: (context, index) {
                 final item = recipes[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _FoodGridItem(
-                    item: item,
-                    userId: userId,
-                    userName: userName,
-                    userImage: userImage,
-                  ),
+                return _FoodGridItem(
+                  item: item,
+                  userId: userId,
+                  userName: userName,
+                  userImage: userImage,
                 );
               },
             );
@@ -351,14 +348,11 @@ class _HomePageState extends State<HomePage> {
           itemCount: recipes.length,
           itemBuilder: (context, index) {
             final item = recipes[index];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _FoodGridItem(
-                item: item,
-                userId: userId,
-                userName: userName,
-                userImage: userImage,
-              ),
+            return _FoodGridItem(
+              item: item,
+              userId: userId,
+              userName: userName,
+              userImage: userImage,
             );
           },
         );
@@ -442,167 +436,169 @@ class _FoodGridItemState extends State<_FoodGridItem> {
   Widget build(BuildContext context) {
     final item = widget.item;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 👤 Author Row ABOVE card
-        FutureBuilder<DocumentSnapshot>(
-          future: FirebaseFirestore.instance
-              .collection('users')
-              .doc(item.authorId) // must exist in Recipe
-              .get(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) return const SizedBox(height: 30);
-            final userData = snapshot.data!.data() as Map<String, dynamic>?;
-            if (userData == null) return const SizedBox(height: 30);
+    return SizedBox.expand(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 👤 Author Row ABOVE card
+          FutureBuilder<DocumentSnapshot>(
+            future: FirebaseFirestore.instance
+                .collection('users')
+                .doc(item.authorId)
+                .get(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const SizedBox(height: 30);
+              final userData = snapshot.data!.data() as Map<String, dynamic>?;
+              if (userData == null) return const SizedBox(height: 30);
 
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  final authorId = item.authorId;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => OtherUserProfilePage(userId: authorId),
-                    ),
-                  );
-                },
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 14,
-                      backgroundImage:
-                          userData['profileImageUrl'] != null &&
-                              userData['profileImageUrl'].isNotEmpty
-                          ? NetworkImage(userData['profileImageUrl'])
-                          : null,
-                      child:
-                          (userData['profileImageUrl'] == null ||
-                              userData['profileImageUrl'].isEmpty)
-                          ? const Icon(Icons.person, size: 16)
-                          : null,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        userData['username'] ?? "Unknown",
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: GestureDetector(
+                  onTap: () {
+                    final authorId = item.authorId;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => OtherUserProfilePage(userId: authorId),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-
-        // 📌 Recipe Card (only image + heart)
-        Expanded(
-          child: GestureDetector(
-            onTap: () {
-              // Prevent opening archived recipe if not author (extra safety)
-              if (item.isArchived && item.authorId != widget.userId) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('This recipe is archived.')),
-                );
-                return;
-              }
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => RecipeDetailPage(recipe: item),
+                    );
+                  },
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundImage:
+                            userData['profileImageUrl'] != null &&
+                                userData['profileImageUrl'].isNotEmpty
+                            ? NetworkImage(userData['profileImageUrl'])
+                            : null,
+                        child:
+                            (userData['profileImageUrl'] == null ||
+                                userData['profileImageUrl'].isEmpty)
+                            ? const Icon(Icons.person, size: 16)
+                            : null,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          userData['username'] ?? "Unknown",
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
-            child: Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: item.coverImageUrl.isNotEmpty
-                      ? Image.network(
-                          item.coverImageUrl,
-                          width: double.infinity,
-                          height: double.infinity,
-                          fit: BoxFit.cover,
-                        )
-                      : Container(
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Center(child: Icon(Icons.image)),
-                        ),
-                ),
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: GestureDetector(
-                    onTap: _handleLike,
-                    child: CircleAvatar(
-                      backgroundColor: Colors.white.withOpacity(0.9),
-                      radius: 16,
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(
-                              _isLiked ? Icons.favorite : Icons.favorite_border,
-                              color: _isLiked ? Colors.red : Colors.grey,
-                              size: 18,
+          ),
+
+          // 📌 Recipe Card (only image + heart)
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                // Prevent opening archived recipe if not author (extra safety)
+                if (item.isArchived && item.authorId != widget.userId) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('This recipe is archived.')),
+                  );
+                  return;
+                }
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => RecipeDetailPage(recipe: item),
+                  ),
+                );
+              },
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: item.coverImageUrl.isNotEmpty
+                        ? Image.network(
+                            item.coverImageUrl,
+                            width: double.infinity,
+                            height: double.infinity,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(16),
                             ),
+                            child: const Center(child: Icon(Icons.image)),
+                          ),
+                  ),
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: GestureDetector(
+                      onTap: _handleLike,
+                      child: CircleAvatar(
+                        backgroundColor: Colors.white.withOpacity(0.9),
+                        radius: 16,
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(
+                                _isLiked
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: _isLiked ? Colors.red : Colors.grey,
+                                size: 18,
+                              ),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
 
-        const SizedBox(height: 6),
+          const SizedBox(height: 6),
 
-        // 📌 Title + Meta + Likes BELOW card
-        Text(
-          item.title,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '${item.category} • ${item.cookingDuration} mins',
-          style: const TextStyle(color: Colors.grey, fontSize: 12),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Icon(Icons.favorite, color: Colors.red.shade400, size: 14),
-            const SizedBox(width: 4),
-            Text('$_likesCount likes', style: const TextStyle(fontSize: 12)),
-            const Spacer(),
-            // Report button — only shown for other people's posts
-            if (item.authorId != widget.userId)
-              GestureDetector(
-                onTap: () => showReportSheet(context, item),
-                child: Tooltip(
-                  message: 'Report post',
+          // 📌 Title + Meta + Likes BELOW card
+          Text(
+            item.title,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${item.category} • ${item.cookingDuration} mins',
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.favorite, color: Colors.red.shade400, size: 14),
+              const SizedBox(width: 4),
+              Text('$_likesCount likes', style: const TextStyle(fontSize: 12)),
+              const Spacer(),
+              // Report button — only shown for other people's posts
+              if (item.authorId != widget.userId)
+                GestureDetector(
+                  onTap: () => showReportSheet(context, item),
                   child: Icon(
                     Icons.flag_outlined,
                     size: 16,
                     color: Colors.grey.shade400,
                   ),
                 ),
-              ),
-          ],
-        ),
-      ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:final_proj/firebase_options.dart';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'onboarding.dart';
@@ -20,10 +21,16 @@ void main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await GoogleAuthService.initialize();
-  FirebaseFirestore.instance.settings = const Settings(
-    persistenceEnabled: true,
-    sslEnabled: true,
-  );
+
+  // On web, Firestore uses IndexedDB persistence automatically.
+  // Only set persistenceEnabled on non-web platforms.
+  if (!kIsWeb) {
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      sslEnabled: true,
+    );
+  }
+
   runApp(const MyApp());
 }
 

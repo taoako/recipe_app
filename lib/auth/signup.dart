@@ -9,6 +9,7 @@ import '../views/admin_page.dart';
 import '../services/google_auth_service.dart';
 import '../services/app_logger.dart';
 import '../services/input_validator.dart';
+import '../services/security_service.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -24,7 +25,42 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _isLoading = false;
   bool _isGoogleLoading = false;
   bool _acceptedPolicy = false;
+  bool _obscurePassword = true;
   String? _error;
+
+  // Real-time password requirements tracking
+  Map<String, bool> _passwordRequirements = {
+    'At least 8 characters': false,
+    'At least one uppercase letter (A-Z)': false,
+    'At least one lowercase letter (a-z)': false,
+    'At least one number (0-9)': false,
+    'At least one special character (!@#\$%^&*)': false,
+  };
+  bool _showPasswordRequirements = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_onPasswordChanged);
+  }
+
+  void _onPasswordChanged() {
+    setState(() {
+      _passwordRequirements = SecurityService.checkPasswordRequirements(
+        _passwordController.text,
+      );
+      _showPasswordRequirements = _passwordController.text.isNotEmpty;
+    });
+  }
+
+  @override
+  void dispose() {
+    _passwordController.removeListener(_onPasswordChanged);
+    _emailController.dispose();
+    _passwordController.dispose();
+    _usernameController.dispose();
+    super.dispose();
+  }
 
   Future<void> _signUp() async {
     if (!_acceptedPolicy) {
@@ -55,6 +91,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
       setState(() => _error = passwordError);
       return;
     }
+
+    // ── CAPTCHA verification before sign-up ──
+    if (!mounted) return;
+    final captchaPassed = await SecurityService.showCaptchaDialog(context);
+    if (!captchaPassed) {
+      unawaited(
+        AppLogger.logWarning(
+          LogEvent.captchaFailed,
+          'CAPTCHA failed during signup',
+          metadata: {'email': email},
+        ),
+      );
+      if (mounted) {
+        setState(
+          () => _error = 'CAPTCHA verification failed. Please try again.',
+        );
+      }
+      return;
+    }
+    unawaited(
+      AppLogger.logInfo(
+        LogEvent.captchaCompleted,
+        'CAPTCHA passed during signup',
+        metadata: {'email': email},
+      ),
+    );
 
     setState(() {
       _isLoading = true;
@@ -395,10 +457,19 @@ Password Tips:
                     // Password
                     TextField(
                       controller: _passwordController,
-                      obscureText: true,
+                      obscureText: _obscurePassword,
                       decoration: InputDecoration(
                         prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: const Icon(Icons.visibility_outlined),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                        ),
                         hintText: "Password",
                         filled: true,
                         fillColor: Colors.grey[100],
@@ -408,6 +479,66 @@ Password Tips:
                         ),
                       ),
                     ),
+
+                    // ── Real-time password requirements ─────────────────────
+                    if (_showPasswordRequirements) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Password Requirements:',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black54,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            ..._passwordRequirements.entries.map(
+                              (entry) => Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      entry.value
+                                          ? Icons.check_circle
+                                          : Icons.cancel,
+                                      size: 16,
+                                      color: entry.value
+                                          ? Colors.green
+                                          : Colors.red.shade300,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        entry.key,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: entry.value
+                                              ? Colors.green.shade700
+                                              : Colors.red.shade400,
+                                          fontWeight: entry.value
+                                              ? FontWeight.w600
+                                              : FontWeight.normal,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 20),
 
                     if (_error != null)

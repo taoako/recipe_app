@@ -33,6 +33,14 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
     LogEvent.recipeAction,
     LogEvent.imageUpload,
     LogEvent.systemError,
+    LogEvent.bruteForceDetected,
+    LogEvent.accountLocked,
+    LogEvent.twoFactorSent,
+    LogEvent.twoFactorSuccess,
+    LogEvent.twoFactorFailure,
+    LogEvent.captchaCompleted,
+    LogEvent.captchaFailed,
+    LogEvent.adminReAuth,
   ];
 
   // ── style helpers ──────────────────────────────────────────────────────────
@@ -74,14 +82,21 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
     switch (event) {
       case LogEvent.loginSuccess:
       case LogEvent.signupSuccess:
+      case LogEvent.twoFactorSuccess:
+      case LogEvent.captchaCompleted:
         return Colors.green;
       case LogEvent.loginFailure:
       case LogEvent.signupFailure:
+      case LogEvent.twoFactorFailure:
+      case LogEvent.captchaFailed:
         return Colors.red;
       case LogEvent.loginBlocked:
       case LogEvent.accessViolation:
+      case LogEvent.bruteForceDetected:
+      case LogEvent.accountLocked:
         return Colors.deepOrange;
       case LogEvent.adminAction:
+      case LogEvent.adminReAuth:
         return Colors.purple;
       case LogEvent.loginAttempt:
         return Colors.blue;
@@ -93,6 +108,8 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
         return Colors.indigo;
       case LogEvent.imageUpload:
         return Colors.cyan;
+      case LogEvent.twoFactorSent:
+        return Colors.amber;
       default:
         return Colors.grey;
     }
@@ -234,12 +251,12 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
                     },
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.refresh, size: 20),
-                  tooltip: 'Refresh',
-                  onPressed: () => setState(() {}),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+                GestureDetector(
+                  onTap: () => setState(() {}),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.refresh, size: 20),
+                  ),
                 ),
               ],
             ),
@@ -302,25 +319,93 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
                     final meta =
                         data['metadata'] as Map<String, dynamic>? ?? {};
 
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: _levelBg(level),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: _levelColor(level).withValues(alpha: 0.25),
-                        ),
-                      ),
-                      child: ExpansionTile(
-                        leading: Icon(
-                          _levelIcon(level),
-                          color: _levelColor(level),
-                          size: 22,
-                        ),
-                        tilePadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 2,
-                        ),
-                        title: Row(
+                    return _LogEntryTile(
+                      level: level,
+                      event: event,
+                      message: message,
+                      userId: userId,
+                      ts: ts,
+                      meta: meta,
+                      levelColor: _levelColor(level),
+                      levelBg: _levelBg(level),
+                      levelIcon: _levelIcon(level),
+                      eventColor: _eventColor(event),
+                      formatTs: _formatTs,
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Custom stateful tile that expands on tap — avoids ExpansionTile's
+/// internal InkWell / Tooltip which crash on Flutter web with
+/// "Cannot hit test a render box that has never been laid out".
+class _LogEntryTile extends StatefulWidget {
+  final String level;
+  final String event;
+  final String message;
+  final String userId;
+  final dynamic ts;
+  final Map<String, dynamic> meta;
+  final Color levelColor;
+  final Color levelBg;
+  final IconData levelIcon;
+  final Color eventColor;
+  final String Function(dynamic) formatTs;
+
+  const _LogEntryTile({
+    required this.level,
+    required this.event,
+    required this.message,
+    required this.userId,
+    required this.ts,
+    required this.meta,
+    required this.levelColor,
+    required this.levelBg,
+    required this.levelIcon,
+    required this.eventColor,
+    required this.formatTs,
+  });
+
+  @override
+  State<_LogEntryTile> createState() => _LogEntryTileState();
+}
+
+class _LogEntryTileState extends State<_LogEntryTile> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: widget.levelBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: widget.levelColor.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header (tap to expand) ─────────────────────────────────────
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(widget.levelIcon, color: widget.levelColor, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
                             // Level badge
                             Container(
@@ -329,11 +414,11 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: _levelColor(level),
+                                color: widget.levelColor,
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                level.toUpperCase(),
+                                widget.level.toUpperCase(),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 9,
@@ -349,20 +434,20 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: _eventColor(
-                                  event,
-                                ).withValues(alpha: 0.15),
+                                color: widget.eventColor.withValues(
+                                  alpha: 0.15,
+                                ),
                                 borderRadius: BorderRadius.circular(4),
                                 border: Border.all(
-                                  color: _eventColor(
-                                    event,
-                                  ).withValues(alpha: 0.4),
+                                  color: widget.eventColor.withValues(
+                                    alpha: 0.4,
+                                  ),
                                 ),
                               ),
                               child: Text(
-                                event.replaceAll('_', ' ').toUpperCase(),
+                                widget.event.replaceAll('_', ' ').toUpperCase(),
                                 style: TextStyle(
-                                  color: _eventColor(event),
+                                  color: widget.eventColor,
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -370,66 +455,71 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
                             ),
                           ],
                         ),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 3),
-                          child: Text(
-                            message,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Colors.black87,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.message,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.black87,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        // Expanded details
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Divider(height: 12),
-                                _DetailRow(
-                                  icon: Icons.access_time,
-                                  label: 'Timestamp',
-                                  value: _formatTs(ts),
-                                ),
-                                _DetailRow(
-                                  icon: Icons.person_outline,
-                                  label: 'User ID',
-                                  value: userId.isEmpty ? '—' : userId,
-                                ),
-                                if (meta.isNotEmpty) ...[
-                                  const SizedBox(height: 6),
-                                  const Text(
-                                    'Metadata',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black54,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  ...meta.entries.map(
-                                    (entry) => _DetailRow(
-                                      icon: Icons.label_outline,
-                                      label: entry.key,
-                                      value: entry.value.toString(),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              },
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    color: Colors.grey,
+                    size: 22,
+                  ),
+                ],
+              ),
             ),
           ),
+
+          // ── Expandable details ─────────────────────────────────────────
+          if (_expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Divider(height: 12),
+                  _DetailRow(
+                    icon: Icons.access_time,
+                    label: 'Timestamp',
+                    value: widget.formatTs(widget.ts),
+                  ),
+                  _DetailRow(
+                    icon: Icons.person_outline,
+                    label: 'User ID',
+                    value: widget.userId.isEmpty ? '—' : widget.userId,
+                  ),
+                  if (widget.meta.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Metadata',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ...widget.meta.entries.map(
+                      (entry) => _DetailRow(
+                        icon: Icons.label_outline,
+                        label: entry.key,
+                        value: entry.value.toString(),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
         ],
       ),
     );

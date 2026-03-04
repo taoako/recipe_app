@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/cloudinary_service.dart';
 import '../services/app_logger.dart';
+import '../services/security_service.dart';
 import '../model/recipe.dart';
 import 'edit_profile_page.dart';
 import '../model/user.dart';
@@ -48,6 +49,122 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  /// Show a dialog to enable / disable Two-Factor Authentication.
+  /// Enabling triggers the authenticator app setup flow (QR code).
+  /// Disabling removes the TOTP secret.
+  Future<void> _showTwoFactorToggle() async {
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    if (firebaseUser == null) return;
+
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(firebaseUser.uid)
+        .get();
+
+    if (!userDoc.exists || !mounted) return;
+
+    final data = userDoc.data() ?? {};
+    final twoFAEnabled = data['twoFactorEnabled'] == true;
+
+    if (twoFAEnabled) {
+      // ── Currently enabled → ask to disable ───────────────────────────────
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.security, color: Colors.deepOrange),
+              SizedBox(width: 10),
+              Text(
+                'Disable 2FA?',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning_amber, color: Colors.red, size: 18),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Disabling 2FA will remove the authenticator app '
+                        'link. Your account will be less secure.',
+                        style: TextStyle(fontSize: 12, color: Colors.black54),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Keep enabled'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Disable'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm == true) {
+        await SecurityService.disableTOTP(firebaseUser.uid);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Two-Factor Authentication disabled.'),
+              backgroundColor: Colors.grey,
+            ),
+          );
+        }
+      }
+    } else {
+      // ── Currently disabled → launch setup flow ────────────────────────────
+      if (!mounted) return;
+      final setupOk = await SecurityService.show2FADialog(
+        context,
+        firebaseUser.uid,
+        firebaseUser.email ?? '',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              setupOk
+                  ? 'Two-Factor Authentication enabled!'
+                  : '2FA setup cancelled.',
+            ),
+            backgroundColor: setupOk ? Colors.green : Colors.grey,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -80,15 +197,15 @@ class _ProfilePageState extends State<ProfilePage> {
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit, color: Colors.white),
-            onPressed: _openEditProfile,
-          ),
           PopupMenuButton<String>(
             color: Colors.white,
             icon: const Icon(Icons.more_vert, color: Colors.white),
             onSelected: (value) async {
-              if (value == 'logout') {
+              if (value == 'edit_profile') {
+                _openEditProfile();
+              } else if (value == 'two_factor') {
+                _showTwoFactorToggle();
+              } else if (value == 'logout') {
                 final uid = FirebaseAuth.instance.currentUser?.uid;
                 // Log logout BEFORE signing out (need auth to write)
                 await AppLogger.logInfo(
@@ -108,6 +225,41 @@ class _ProfilePageState extends State<ProfilePage> {
               }
             },
             itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'edit_profile',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.edit_outlined,
+                      color: Colors.deepOrange,
+                      size: 18,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Edit Profile',
+                      style: TextStyle(color: Colors.black87),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'two_factor',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.security_outlined,
+                      color: Colors.deepOrange,
+                      size: 18,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Two-Factor Auth',
+                      style: TextStyle(color: Colors.black87),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'report',
                 child: Row(
