@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../auth/login.dart';
+import '../services/access_control_service.dart';
+import '../services/app_logger.dart';
+import 'access_denied_page.dart';
 import 'moderator_reports_tab.dart';
 import 'admin_announcements_page.dart';
 
@@ -18,6 +22,48 @@ class ModeratorPage extends StatefulWidget {
 
 class _ModeratorPageState extends State<ModeratorPage> {
   int _selectedIndex = 0;
+  bool _roleVerified = false;
+  bool _accessDenied = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _verifyModeratorRole();
+  }
+
+  /// Runtime session + role validation.
+  Future<void> _verifyModeratorRole() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (_) => false,
+        );
+      }
+      return;
+    }
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final role = AccessControlService.roleFromFirestore(doc.data());
+      if (!AccessControlService.hasAccess(role, SystemFeature.reviewReports)) {
+        AppLogger.logWarning(
+          LogEvent.accessViolation,
+          'Unauthorized user tried to access ModeratorPage',
+          userId: user.uid,
+          metadata: {'role': role.name},
+        );
+        if (mounted) setState(() => _accessDenied = true);
+        return;
+      }
+    } catch (_) {
+      // Firestore read failure — allow through; server rules enforce
+    }
+    if (mounted) setState(() => _roleVerified = true);
+  }
 
   static const _destinations = [
     _NavDest(
@@ -239,6 +285,14 @@ class _ModeratorPageState extends State<ModeratorPage> {
 
   @override
   Widget build(BuildContext context) {
+    // ── Access check ──────────────────────────────────────────────────────
+    if (_accessDenied) {
+      return const AccessDeniedPage(featureName: 'Moderator Panel');
+    }
+    if (!_roleVerified) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Scaffold(
       appBar: _buildAppBar(),
       body: LayoutBuilder(

@@ -246,30 +246,52 @@ class _AdminContentTabState extends State<AdminContentTab>
   Future<void> _deleteOrArchiveRecipe(Recipe recipe) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          recipe.isArchived ? 'Permanently Delete?' : 'Archive Recipe?',
-        ),
-        content: Text(
-          recipe.isArchived
-              ? 'This will permanently remove "${recipe.title}". This cannot be undone.'
-              : 'Archiving will hide "${recipe.title}" from everyone. You can restore it later.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  recipe.isArchived ? 'Permanently Delete?' : 'Archive Recipe?',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  recipe.isArchived
+                      ? 'This will permanently remove "${recipe.title}". This cannot be undone.'
+                      : 'Archiving will hide "${recipe.title}" from everyone. You can restore it later.',
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: Text(recipe.isArchived ? 'Delete' : 'Archive'),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            child: Text(recipe.isArchived ? 'Delete' : 'Archive'),
           ),
-        ],
+        ),
       ),
     );
     if (confirm != true) return;
@@ -552,8 +574,8 @@ class _RecipeCard extends StatelessWidget {
           ),
         ],
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => RecipeDetailPage(recipe: recipe)),

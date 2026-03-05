@@ -150,30 +150,9 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 6,
-        backgroundColor: Colors.transparent,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFFFA726), Color(0xFFFF7043)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        title: const Text(
-          'System Logs',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            fontSize: 20,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: Column(
+    return ColoredBox(
+      color: const Color(0xFFF7F8FC),
+      child: Column(
         children: [
           // ── Filter bar ─────────────────────────────────────────────────────
           Container(
@@ -405,7 +384,9 @@ class _LogEntryTileState extends State<_LogEntryTile> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
                           children: [
                             // Level badge
                             Container(
@@ -426,7 +407,6 @@ class _LogEntryTileState extends State<_LogEntryTile> {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 6),
                             // Event badge
                             Container(
                               padding: const EdgeInsets.symmetric(

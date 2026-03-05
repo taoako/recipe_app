@@ -9,9 +9,13 @@ import 'onboarding.dart';
 import 'auth/login.dart';
 import 'main_page.dart';
 import 'services/google_auth_service.dart';
+import 'services/access_control_service.dart';
+import 'services/route_guard.dart';
 import 'views/upload_page.dart';
 import 'views/notification_page.dart';
 import 'views/profile_page.dart';
+import 'views/admin_page.dart';
+import 'views/moderator_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,12 +48,33 @@ class MyApp extends StatelessWidget {
       title: "Cooking App",
       theme: ThemeData(primarySwatch: Colors.deepOrange),
       home: const OnboardingScreen(),
+      // ── Protected named routes with RBAC guards ─────────────────────────
       routes: {
         '/login': (context) => const LoginScreen(),
-        '/home': (context) => const MainPage(),
-        '/upload': (context) => const UploadPage(),
-        '/notification': (context) => const NotificationPage(),
-        '/profile': (context) => ProfilePage(),
+        '/home': (context) => const RouteGuard(
+          feature: SystemFeature.userDashboard,
+          child: MainPage(),
+        ),
+        '/upload': (context) => const RouteGuard(
+          feature: SystemFeature.submitData,
+          child: UploadPage(),
+        ),
+        '/notification': (context) => const RouteGuard(
+          feature: SystemFeature.viewNotifications,
+          child: NotificationPage(),
+        ),
+        '/profile': (context) => RouteGuard(
+          feature: SystemFeature.viewOwnRecords,
+          child: ProfilePage(),
+        ),
+        '/admin': (context) => const RouteGuard(
+          feature: SystemFeature.systemConfiguration,
+          child: AdminPage(),
+        ),
+        '/moderator': (context) => const RouteGuard(
+          feature: SystemFeature.reviewReports,
+          child: ModeratorPage(),
+        ),
       },
     );
   }

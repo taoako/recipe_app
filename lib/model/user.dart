@@ -8,6 +8,7 @@ class AppUser {
   final List<String> followers;
   final List<String> following;
   final bool isAdmin;
+  final String role; // 'user', 'moderator', or 'admin'
 
   AppUser({
     required this.uid,
@@ -19,6 +20,7 @@ class AppUser {
     required this.followers,
     required this.following,
     this.isAdmin = false,
+    this.role = 'user',
   });
 
   Map<String, dynamic> toJson() => {
@@ -31,6 +33,7 @@ class AppUser {
     "followers": followers,
     "following": following,
     "isAdmin": isAdmin,
+    "role": role,
   };
 
   static AppUser fromJson(Map<String, dynamic> json) => AppUser(
@@ -57,5 +60,6 @@ class AppUser {
           )
         : <String>[],
     isAdmin: json["isAdmin"] ?? false,
+    role: (json["role"] as String?) ?? 'user',
   );
 }

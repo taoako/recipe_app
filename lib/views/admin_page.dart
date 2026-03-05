@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../auth/login.dart';
+import '../services/access_control_service.dart';
+import '../services/app_logger.dart';
+import 'access_denied_page.dart';
 import 'admin_analytics_page.dart';
 import 'admin_users_page.dart';
 import 'admin_incident_response_page.dart';
 import 'admin_logs_page.dart';
+import 'admin_user_reports_page.dart';
 
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
@@ -15,6 +20,48 @@ class AdminPage extends StatefulWidget {
 
 class _AdminPageState extends State<AdminPage> {
   int _selectedIndex = 0;
+  bool _roleVerified = false;
+  bool _accessDenied = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _verifyAdminRole();
+  }
+
+  /// Runtime session + role validation.
+  Future<void> _verifyAdminRole() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (_) => false,
+        );
+      }
+      return;
+    }
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final role = AccessControlService.roleFromFirestore(doc.data());
+      if (role != AppRole.admin) {
+        AppLogger.logWarning(
+          LogEvent.accessViolation,
+          'Non-admin tried to access AdminPage',
+          userId: user.uid,
+          metadata: {'role': role.name},
+        );
+        if (mounted) setState(() => _accessDenied = true);
+        return;
+      }
+    } catch (_) {
+      // Firestore read failure — allow through; server rules enforce
+    }
+    if (mounted) setState(() => _roleVerified = true);
+  }
 
   // ── nav destinations ──────────────────────────────────────────────────────
   static const _destinations = [
@@ -34,16 +81,22 @@ class _AdminPageState extends State<AdminPage> {
       label: 'Incidents',
     ),
     _NavDest(
+      icon: Icons.feedback_outlined,
+      selectedIcon: Icons.feedback_rounded,
+      label: 'Reports',
+    ),
+    _NavDest(
       icon: Icons.history_edu_outlined,
       selectedIcon: Icons.history_edu_rounded,
       label: 'Logs',
     ),
   ];
 
-  static const _pages = [
+  static const _pages = <Widget>[
     AdminAnalyticsPage(),
     AdminUsersPage(),
     AdminIncidentResponsePage(),
+    AdminUserReportsPage(),
     AdminLogsPage(),
   ];
 
@@ -51,6 +104,7 @@ class _AdminPageState extends State<AdminPage> {
     'Dashboard',
     'User Management',
     'Incident Response',
+    'User Reports',
     'System Logs',
   ];
 
@@ -61,27 +115,47 @@ class _AdminPageState extends State<AdminPage> {
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Sign Out'),
-        content: const Text('Are you sure you want to sign out?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF5722),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 380),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Sign Out',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                const Text('Are you sure you want to sign out?'),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF5722),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text('Sign Out'),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            child: const Text('Sign Out'),
           ),
-        ],
+        ),
       ),
     );
     if (confirm != true) return;
@@ -96,6 +170,16 @@ class _AdminPageState extends State<AdminPage> {
   // ── build ───────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    // ── Access check ──────────────────────────────────────────────────────
+    if (_accessDenied) {
+      return const AccessDeniedPage(
+        featureName: 'System Configuration (Admin Panel)',
+      );
+    }
+    if (!_roleVerified) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 640;

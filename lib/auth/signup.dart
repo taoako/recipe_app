@@ -6,6 +6,7 @@ import 'login.dart';
 import 'email_verification_page.dart';
 import '../main_page.dart';
 import '../views/admin_page.dart';
+import '../views/moderator_page.dart';
 import '../services/google_auth_service.dart';
 import '../services/app_logger.dart';
 import '../services/input_validator.dart';
@@ -132,6 +133,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
           'username': username,
           'email': email,
           'emailVerified': false,
+          'role': 'user',
+          'isAdmin': false,
         });
         await user.updateDisplayName(username);
         // Send verification email with an explicit HTTPS action URL so the
@@ -227,11 +230,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       final userData = userDoc.data();
       final isAdmin = userData?['isAdmin'] ?? false;
+      final role = userData?['role']?.toString() ?? 'user';
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => isAdmin ? const AdminPage() : const MainPage(),
+          builder: (context) {
+            if (isAdmin || role == 'admin') return const AdminPage();
+            if (role == 'moderator') return const ModeratorPage();
+            return const MainPage();
+          },
         ),
       );
     } catch (e) {

@@ -73,111 +73,146 @@ class _AdminIncidentResponsePageState extends State<AdminIncidentResponsePage> {
       ),
       pageBuilder: (ctx, _, __) {
         return StatefulBuilder(
-          builder: (ctx, setS) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.warning_amber_rounded, color: Color(0xFFFF7043)),
-                SizedBox(width: 8),
-                Text('Create Incident'),
-              ],
+          builder: (ctx, setS) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: titleCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Incident Title *',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: descCtrl,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Description / What happened?',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: sysCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Affected System / Area',
-                      hintText: 'e.g. Authentication, Database, API',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Severity',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: _severities
-                        .map(
-                          (s) => ChoiceChip(
-                            label: Text(s.toUpperCase()),
-                            selected: severity == s,
-                            selectedColor: _severityColor(
-                              s,
-                            ).withValues(alpha: 0.2),
-                            labelStyle: TextStyle(
-                              color: severity == s
-                                  ? _severityColor(s)
-                                  : Colors.grey.shade700,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 11,
-                            ),
-                            onSelected: (_) => setS(() => severity = s),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          color: Color(0xFFFF7043),
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Create Incident',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
                           ),
-                        )
-                        .toList(),
-                  ),
-                ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextField(
+                              controller: titleCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Incident Title *',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: descCtrl,
+                              maxLines: 3,
+                              decoration: const InputDecoration(
+                                labelText: 'Description / What happened?',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: sysCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Affected System / Area',
+                                hintText: 'e.g. Authentication, Database, API',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Severity',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              children: _severities
+                                  .map(
+                                    (s) => ChoiceChip(
+                                      label: Text(s.toUpperCase()),
+                                      selected: severity == s,
+                                      selectedColor: _severityColor(
+                                        s,
+                                      ).withValues(alpha: 0.2),
+                                      labelStyle: TextStyle(
+                                        color: severity == s
+                                            ? _severityColor(s)
+                                            : Colors.grey.shade700,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 11,
+                                      ),
+                                      onSelected: (_) =>
+                                          setS(() => severity = s),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('CANCEL'),
+                        ),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.add_alarm_outlined, size: 16),
+                          label: const Text('CREATE'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF7043),
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () async {
+                            if (titleCtrl.text.trim().isEmpty) return;
+                            final admin = FirebaseAuth.instance.currentUser;
+                            await FirebaseFirestore.instance
+                                .collection('incidents')
+                                .add({
+                                  'title': titleCtrl.text.trim(),
+                                  'description': descCtrl.text.trim(),
+                                  'affectedSystem': sysCtrl.text.trim(),
+                                  'severity': severity,
+                                  'phase': 'detection',
+                                  'status': 'open',
+                                  'createdBy': admin?.uid ?? '',
+                                  'createdByName':
+                                      admin?.displayName ?? 'Admin',
+                                  'detectedAt': FieldValue.serverTimestamp(),
+                                  'resolvedAt': null,
+                                });
+                            AppLogger.logWarning(
+                              LogEvent.adminAction,
+                              'Incident created: ${titleCtrl.text.trim()}',
+                              metadata: {'severity': severity},
+                            );
+                            if (ctx.mounted) Navigator.pop(ctx);
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('CANCEL'),
-              ),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.add_alarm_outlined, size: 16),
-                label: const Text('CREATE'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFF7043),
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () async {
-                  if (titleCtrl.text.trim().isEmpty) return;
-                  final admin = FirebaseAuth.instance.currentUser;
-                  await FirebaseFirestore.instance.collection('incidents').add({
-                    'title': titleCtrl.text.trim(),
-                    'description': descCtrl.text.trim(),
-                    'affectedSystem': sysCtrl.text.trim(),
-                    'severity': severity,
-                    'phase': 'detection',
-                    'status': 'open',
-                    'createdBy': admin?.uid ?? '',
-                    'createdByName': admin?.displayName ?? 'Admin',
-                    'detectedAt': FieldValue.serverTimestamp(),
-                    'resolvedAt': null,
-                  });
-                  AppLogger.logWarning(
-                    LogEvent.adminAction,
-                    'Incident created: ${titleCtrl.text.trim()}',
-                    metadata: {'severity': severity},
-                  );
-                  if (ctx.mounted) Navigator.pop(ctx);
-                },
-              ),
-            ],
           ),
         );
       },
@@ -193,86 +228,113 @@ class _AdminIncidentResponsePageState extends State<AdminIncidentResponsePage> {
     await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          title: const Text('Update Phase'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              RadioGroup<String>(
-                groupValue: phase,
-                onChanged: (v) => setS(() => phase = v ?? phase),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: _phases
-                      .map(
-                        (p) => RadioListTile<String>(
-                          value: p,
-                          title: Row(
-                            children: [
-                              Icon(
-                                _phaseIcon(p),
-                                color: _phaseColor(p),
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                p[0].toUpperCase() + p.substring(1),
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: _phaseColor(p),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: noteCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Action taken / Note',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
+        builder: (ctx, setS) => Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('CANCEL'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final admin = FirebaseAuth.instance.currentUser;
-                final updates = <String, dynamic>{
-                  'phase': phase,
-                  if (phase == 'closed') ...{
-                    'status': 'resolved',
-                    'resolvedAt': FieldValue.serverTimestamp(),
-                  },
-                };
-                await doc.reference.update(updates);
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Update Phase',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          RadioGroup<String>(
+                            groupValue: phase,
+                            onChanged: (v) => setS(() => phase = v ?? phase),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: _phases
+                                  .map(
+                                    (p) => RadioListTile<String>(
+                                      value: p,
+                                      title: Row(
+                                        children: [
+                                          Icon(
+                                            _phaseIcon(p),
+                                            color: _phaseColor(p),
+                                            size: 18,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            p[0].toUpperCase() + p.substring(1),
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              color: _phaseColor(p),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: noteCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Action taken / Note',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('CANCEL'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final admin = FirebaseAuth.instance.currentUser;
+                          final updates = <String, dynamic>{
+                            'phase': phase,
+                            if (phase == 'closed') ...{
+                              'status': 'resolved',
+                              'resolvedAt': FieldValue.serverTimestamp(),
+                            },
+                          };
+                          await doc.reference.update(updates);
 
-                if (noteCtrl.text.trim().isNotEmpty) {
-                  await doc.reference.collection('timeline').add({
-                    'note': noteCtrl.text.trim(),
-                    'phase': phase,
-                    'by': admin?.displayName ?? 'Admin',
-                    'at': FieldValue.serverTimestamp(),
-                  });
-                }
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF7043),
-                foregroundColor: Colors.white,
+                          if (noteCtrl.text.trim().isNotEmpty) {
+                            await doc.reference.collection('timeline').add({
+                              'note': noteCtrl.text.trim(),
+                              'phase': phase,
+                              'by': admin?.displayName ?? 'Admin',
+                              'at': FieldValue.serverTimestamp(),
+                            });
+                          }
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF7043),
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('UPDATE'),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              child: const Text('UPDATE'),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -471,256 +533,281 @@ class _AdminIncidentResponsePageState extends State<AdminIncidentResponsePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FC),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFFFF7043),
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_alarm_outlined),
-        label: const Text('New Incident'),
-        onPressed: _showCreateDialog,
-      ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return ColoredBox(
+      color: const Color(0xFFF7F8FC),
+      child: Stack(
         children: [
-          // ── Intro banner ──────────────────────────────────────────────────
-          Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF7043), Color(0xFFFF5252)],
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.security, color: Colors.white, size: 36),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Incident Response',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Track and manage security incidents through Detection → Containment → Recovery.',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                    ],
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Intro banner ──────────────────────────────────────────────────
+              Container(
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF7043), Color(0xFFFF5252)],
                   ),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ],
-            ),
-          ),
-
-          // ── Phase legend ──────────────────────────────────────────────────
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: _phases.map((p) {
-                return Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _phaseColor(p).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: _phaseColor(p).withValues(alpha: 0.4),
+                child: const Row(
+                  children: [
+                    Icon(Icons.security, color: Colors.white, size: 36),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Incident Response',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Track and manage security incidents through Detection → Containment → Recovery.',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(_phaseIcon(p), size: 14, color: _phaseColor(p)),
-                      const SizedBox(width: 4),
-                      Text(
-                        p[0].toUpperCase() + p.substring(1),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: _phaseColor(p),
+                  ],
+                ),
+              ),
+
+              // ── Phase legend ──────────────────────────────────────────────────
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: _phases.map((p) {
+                    return Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _phaseColor(p).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: _phaseColor(p).withValues(alpha: 0.4),
                         ),
                       ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // ── Incident list ─────────────────────────────────────────────────
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('incidents')
-                  .orderBy('detectedAt', descending: true)
-                  .snapshots(),
-              builder: (ctx, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (!snap.hasData || snap.data!.docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.verified_user_outlined,
-                          size: 64,
-                          color: Colors.green.shade300,
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'No incidents recorded',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(_phaseIcon(p), size: 14, color: _phaseColor(p)),
+                          const SizedBox(width: 4),
+                          Text(
+                            p[0].toUpperCase() + p.substring(1),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: _phaseColor(p),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'The system appears healthy.',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-                  itemCount: snap.data!.docs.length,
-                  itemBuilder: (ctx, i) {
-                    final doc = snap.data!.docs[i];
-                    final data = doc.data() as Map<String, dynamic>;
-                    final phase = data['phase'] ?? 'detection';
-                    final severity = data['severity'] ?? 'low';
-                    final isClosed = phase == 'closed';
-
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      elevation: isClosed ? 0 : 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: isClosed
-                            ? BorderSide(color: Colors.grey.shade200)
-                            : BorderSide.none,
-                      ),
-                      color: isClosed ? Colors.grey.shade50 : Colors.white,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () => _showDetail(doc),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _severityColor(
-                                        severity,
-                                      ).withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      severity.toUpperCase(),
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800,
-                                        color: _severityColor(severity),
-                                      ),
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  _PhaseBadge(
-                                    phase: phase,
-                                    color: _phaseColor(phase),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                data['title'] ?? '—',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: isClosed
-                                      ? Colors.grey
-                                      : Colors.black87,
-                                  decoration: isClosed
-                                      ? TextDecoration.lineThrough
-                                      : null,
-                                ),
-                              ),
-                              if ((data['affectedSystem'] ?? '').isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    'System: ${data['affectedSystem']}',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.person_outline,
-                                    size: 13,
-                                    color: Colors.grey,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    data['createdByName'] ?? '—',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Icon(
-                                    Icons.schedule_outlined,
-                                    size: 13,
-                                    color: Colors.grey,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    _formatTs(data['detectedAt']),
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
+                        ],
                       ),
                     );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // ── Incident list ─────────────────────────────────────────────────
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('incidents')
+                      .orderBy('detectedAt', descending: true)
+                      .snapshots(),
+                  builder: (ctx, snap) {
+                    if (snap.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (!snap.hasData || snap.data!.docs.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.verified_user_outlined,
+                              size: 64,
+                              color: Colors.green.shade300,
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'No incidents recorded',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'The system appears healthy.',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+                      itemCount: snap.data!.docs.length,
+                      itemBuilder: (ctx, i) {
+                        final doc = snap.data!.docs[i];
+                        final data = doc.data() as Map<String, dynamic>;
+                        final phase = data['phase'] ?? 'detection';
+                        final severity = data['severity'] ?? 'low';
+                        final isClosed = phase == 'closed';
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          elevation: isClosed ? 0 : 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: isClosed
+                                ? BorderSide(color: Colors.grey.shade200)
+                                : BorderSide.none,
+                          ),
+                          color: isClosed ? Colors.grey.shade50 : Colors.white,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _showDetail(doc),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: _severityColor(
+                                            severity,
+                                          ).withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          severity.toUpperCase(),
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w800,
+                                            color: _severityColor(severity),
+                                          ),
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      _PhaseBadge(
+                                        phase: phase,
+                                        color: _phaseColor(phase),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    data['title'] ?? '—',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: isClosed
+                                          ? Colors.grey
+                                          : Colors.black87,
+                                      decoration: isClosed
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                    ),
+                                  ),
+                                  if ((data['affectedSystem'] ?? '').isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(
+                                        'System: ${data['affectedSystem']}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 12,
+                                    runSpacing: 4,
+                                    children: [
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.person_outline,
+                                            size: 13,
+                                            color: Colors.grey,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            data['createdByName'] ?? '—',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.schedule_outlined,
+                                            size: 13,
+                                            color: Colors.grey,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            _formatTs(data['detectedAt']),
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
                   },
-                );
-              },
+                ),
+              ),
+            ],
+          ),
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: FloatingActionButton.extended(
+              backgroundColor: const Color(0xFFFF7043),
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add_alarm_outlined),
+              label: const Text('New Incident'),
+              onPressed: _showCreateDialog,
             ),
           ),
         ],
