@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -19,14 +19,14 @@ class SecurityService {
   static final _db = FirebaseFirestore.instance;
   static final _auth = FirebaseAuth.instance;
 
-  // ── Account lockout constants ─────────────────────────────────────────────
+  // ΓöÇΓöÇ Account lockout constants ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   static const int maxLoginAttempts = 5;
   static const Duration lockoutDuration = Duration(minutes: 15);
   static const Duration bruteForceWindow = Duration(minutes: 10);
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
   // ACCOUNT LOCKOUT
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
   /// Check if account is locked. Returns remaining lockout duration or null.
   static Future<Duration?> checkAccountLockout(String email) async {
@@ -48,7 +48,7 @@ class SecurityService {
         if (DateTime.now().isBefore(lockEnd)) {
           return lockEnd.difference(DateTime.now());
         } else {
-          // Lock expired — reset
+          // Lock expired ΓÇö reset
           await _db.collection('login_attempts').doc(normalizedEmail).update({
             'failedAttempts': 0,
             'lockedUntil': null,
@@ -68,7 +68,7 @@ class SecurityService {
         unawaited(
           AppLogger.logWarning(
             LogEvent.bruteForceDetected,
-            'Brute force attack detected — account locked: $normalizedEmail',
+            'Brute force attack detected ΓÇö account locked: $normalizedEmail',
             metadata: {
               'email': normalizedEmail,
               'failedAttempts': attempts,
@@ -85,7 +85,7 @@ class SecurityService {
 
       return null;
     } catch (e) {
-      // Firestore permission denied or network error — skip lockout check
+      // Firestore permission denied or network error ΓÇö skip lockout check
       return null;
     }
   }
@@ -142,7 +142,7 @@ class SecurityService {
         unawaited(
           AppLogger.logWarning(
             LogEvent.bruteForceDetected,
-            'Brute force detected — too many failed attempts',
+            'Brute force detected ΓÇö too many failed attempts',
             metadata: {
               'email': normalizedEmail,
               'lockedForMinutes': lockoutDuration.inMinutes,
@@ -165,7 +165,7 @@ class SecurityService {
 
       return currentAttempts;
     } catch (e) {
-      // Firestore permission denied — can't track attempts
+      // Firestore permission denied ΓÇö can't track attempts
       return 0;
     }
   }
@@ -181,7 +181,7 @@ class SecurityService {
         'lastSuccessAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (_) {
-      // Silently fail — don't crash for logging
+      // Silently fail ΓÇö don't crash for logging
     }
   }
 
@@ -214,13 +214,13 @@ class SecurityService {
         },
       });
     } catch (e) {
-      // Silently fail — don't crash the app for logging
+      // Silently fail ΓÇö don't crash the app for logging
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 2FA — TOTP (Authenticator App: Google Authenticator, Microsoft Authenticator)
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  // 2FA ΓÇö TOTP (Authenticator App: Google Authenticator, Microsoft Authenticator)
+  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
   static const String _totpIssuer = 'INGRNTS';
 
@@ -242,7 +242,7 @@ class SecurityService {
         '?secret=$secret&issuer=$issuer&algorithm=SHA1&digits=6&period=30';
   }
 
-  /// Verify a TOTP code against a secret. Allows ±1 time-step (30 s) drift.
+  /// Verify a TOTP code against a secret. Allows ┬▒1 time-step (30 s) drift.
   static bool _verifyTOTP(String secret, String code) {
     final now = DateTime.now().millisecondsSinceEpoch;
     for (int i = -1; i <= 1; i++) {
@@ -290,7 +290,7 @@ class SecurityService {
       unawaited(
         AppLogger.logInfo(
           LogEvent.twoFactorSuccess,
-          'TOTP setup completed — authenticator app linked',
+          'TOTP setup completed ΓÇö authenticator app linked',
           userId: userId,
         ),
       );
@@ -299,7 +299,7 @@ class SecurityService {
     return false;
   }
 
-  /// Disable TOTP 2FA for a user — removes the secret and the flag.
+  /// Disable TOTP 2FA for a user ΓÇö removes the secret and the flag.
   static Future<void> disableTOTP(String userId) async {
     await _db.collection('2fa_codes').doc(userId).delete();
     await _db.collection('users').doc(userId).update({
@@ -309,15 +309,15 @@ class SecurityService {
     unawaited(
       AppLogger.logInfo(
         LogEvent.settingsChange,
-        '2FA disabled by user — authenticator unlinked',
+        '2FA disabled by user ΓÇö authenticator unlinked',
         userId: userId,
       ),
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
   // ADMIN RE-AUTHENTICATION
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
   /// Re-authenticate the current admin by verifying their password.
   /// Returns true if successful.
@@ -354,11 +354,11 @@ class SecurityService {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
   // CAPTCHA (Google reCAPTCHA v2 via WebView on mobile, fallback on desktop)
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
-  /// reCAPTCHA v2 site key — replace with your own from
+  /// reCAPTCHA v2 site key ΓÇö replace with your own from
   /// https://www.google.com/recaptcha/admin for production.
   /// The key below is Google's public TEST key (always passes).
   static const String _recaptchaSiteKey =
@@ -394,7 +394,7 @@ class SecurityService {
     <div class="g-recaptcha"
          data-sitekey="$_recaptchaSiteKey"
          data-callback="onSuccess"></div>
-    <p class="msg" id="msg">&#10003; Verified! Closing…</p>
+    <p class="msg" id="msg">&#10003; Verified! ClosingΓÇª</p>
   </div>
   <script>
     function onSuccess(token) {
@@ -408,9 +408,9 @@ class SecurityService {
 </html>
 ''';
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
   // FIRST LOGIN DETECTION
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
   /// Check if this is the user's first login (no previous successful login).
   static Future<bool> isFirstLogin(String userId) async {
@@ -428,9 +428,9 @@ class SecurityService {
     });
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
   // PASSWORD POLICY VALIDATION
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
   /// Returns a map of each password requirement and whether it's met.
   static Map<String, bool> checkPasswordRequirements(String password) {
@@ -454,12 +454,12 @@ class SecurityService {
     return checkPasswordRequirements(password).values.every((v) => v);
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // UI HELPERS — Dialogs
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  // UI HELPERS ΓÇö Dialogs
+  // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
-  /// Show the 2FA dialog. If TOTP is already set up AND verified → verify.
-  /// If TOTP is NOT set up or was never verified → show the setup flow (QR code).
+  /// Show the 2FA dialog. If TOTP is already set up AND verified ΓåÆ verify.
+  /// If TOTP is NOT set up or was never verified ΓåÆ show the setup flow (QR code).
   /// Returns true if the user passes 2FA.
   static Future<bool> show2FADialog(
     BuildContext context,
@@ -472,19 +472,19 @@ class SecurityService {
     final verified = data?['verified'] == true;
 
     if (secret == null || secret.isEmpty || !verified) {
-      // No TOTP set up, or previous setup was never completed — run setup flow
+      // No TOTP set up, or previous setup was never completed ΓÇö run setup flow
       if (!context.mounted) return false;
       return _show2FASetupDialog(context, userId, email);
     }
 
-    // TOTP exists and was verified — just ask for a code
+    // TOTP exists and was verified ΓÇö just ask for a code
     if (!context.mounted) return false;
     return _show2FAVerifyDialog(context, userId, secret);
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // TOTP SETUP DIALOG — QR code + manual key + first-code verification
-  // ──────────────────────────────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // TOTP SETUP DIALOG ΓÇö QR code + manual key + first-code verification
+  // ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   static Future<bool> _show2FASetupDialog(
     BuildContext context,
@@ -765,188 +765,29 @@ class SecurityService {
     return result ?? false;
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // TOTP VERIFY DIALOG — simple code input for returning users
-  // ──────────────────────────────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // TOTP VERIFY DIALOG ΓÇö simple code input for returning users
+  // ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   static Future<bool> _show2FAVerifyDialog(
     BuildContext context,
     String userId,
     String secret,
   ) async {
-    final codeController = TextEditingController();
-    String? error;
-    bool isVerifying = false;
+    if (!context.mounted) return false;
 
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Title
-                  const Row(
-                    children: [
-                      Icon(Icons.security, color: Colors.deepOrange),
-                      SizedBox(width: 10),
-                      Text(
-                        '2-Step Verification',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 17,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange.shade200),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.phone_android, color: Colors.deepOrange),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Open your authenticator app and enter '
-                            'the 6-digit code.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: codeController,
-                    keyboardType: TextInputType.number,
-                    maxLength: 6,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 8,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: '000000',
-                      counterText: '',
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                  if (error != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      error!,
-                      style: const TextStyle(color: Colors.red, fontSize: 12),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-
-                  // Actions
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel'),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: isVerifying
-                            ? null
-                            : () async {
-                                final code = codeController.text.trim();
-                                if (code.length != 6) {
-                                  setS(() => error = 'Enter the 6-digit code.');
-                                  return;
-                                }
-
-                                setS(() {
-                                  isVerifying = true;
-                                  error = null;
-                                });
-
-                                final valid = _verifyTOTP(secret, code);
-
-                                if (valid) {
-                                  unawaited(
-                                    AppLogger.logInfo(
-                                      LogEvent.twoFactorSuccess,
-                                      '2FA TOTP verification successful',
-                                      userId: userId,
-                                    ),
-                                  );
-                                  if (ctx.mounted) {
-                                    Navigator.pop(ctx, true);
-                                  }
-                                } else {
-                                  unawaited(
-                                    AppLogger.logWarning(
-                                      LogEvent.twoFactorFailure,
-                                      '2FA TOTP verification failed — invalid code',
-                                      userId: userId,
-                                    ),
-                                  );
-                                  setS(() {
-                                    isVerifying = false;
-                                    error =
-                                        'Invalid code. Check your '
-                                        'authenticator app '
-                                        'and try again.';
-                                  });
-                                }
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepOrange,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: isVerifying
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Verify'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+    final result = await Navigator.of(context, rootNavigator: true).push<bool>(
+      PageRouteBuilder<bool>(
+        settings: const RouteSettings(name: '/two-factor-verify'),
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => _TwoFactorVerifyPage(
+          userId: userId,
+          secret: secret,
         ),
       ),
     );
 
-    codeController.dispose();
     return result ?? false;
   }
 
@@ -1135,8 +976,8 @@ class SecurityService {
   }
 
   /// Show CAPTCHA verification.
-  /// On Android / iOS → opens a full-screen reCAPTCHA v2 WebView page.
-  /// On desktop / unsupported → shows a simple math challenge dialog.
+  /// On Android / iOS ΓåÆ opens a full-screen reCAPTCHA v2 WebView page.
+  /// On desktop / unsupported ΓåÆ shows a simple math challenge dialog.
   static Future<bool> showCaptchaDialog(BuildContext context) async {
     if (_supportsWebView) {
       final passed = await Navigator.push<bool>(
@@ -1155,7 +996,7 @@ class SecurityService {
     final rng = Random.secure();
     int a = rng.nextInt(20) + 1;
     int b = rng.nextInt(20) + 1;
-    final ops = ['+', '-', '×'];
+    final ops = ['+', '-', '├ù'];
     String op = ops[rng.nextInt(ops.length)];
     int answer = _mathAnswer(a, b, op);
 
@@ -1319,7 +1160,7 @@ class SecurityService {
         return a + b;
       case '-':
         return a - b;
-      case '×':
+      case '├ù':
         return a * b;
       default:
         return a + b;
@@ -1327,9 +1168,230 @@ class SecurityService {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+class _TwoFactorVerifyPage extends StatefulWidget {
+  const _TwoFactorVerifyPage({required this.userId, required this.secret});
+
+  final String userId;
+  final String secret;
+
+  @override
+  State<_TwoFactorVerifyPage> createState() => _TwoFactorVerifyPageState();
+}
+
+class _TwoFactorVerifyPageState extends State<_TwoFactorVerifyPage> {
+  late final TextEditingController _codeController;
+  late final FocusNode _otpFocusNode;
+
+  String? _error;
+  bool _isVerifying = false;
+  bool _didComplete = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _codeController = TextEditingController();
+    _otpFocusNode = FocusNode();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        FocusScope.of(context).requestFocus(_otpFocusNode);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    _otpFocusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleVerify() async {
+    if (_isVerifying || _didComplete) return;
+
+    final code = _codeController.text.trim();
+    if (code.length != 6) {
+      setState(() => _error = 'Enter the 6-digit code.');
+      return;
+    }
+
+    setState(() {
+      _isVerifying = true;
+      _error = null;
+    });
+
+    final valid = SecurityService._verifyTOTP(widget.secret, code);
+    if (!mounted || _didComplete) return;
+
+    if (valid) {
+      _didComplete = true;
+      unawaited(
+        AppLogger.logInfo(
+          LogEvent.twoFactorSuccess,
+          '2FA TOTP verification successful',
+          userId: widget.userId,
+        ),
+      );
+      Navigator.of(context).pop(true);
+      return;
+    }
+
+    unawaited(
+      AppLogger.logWarning(
+        LogEvent.twoFactorFailure,
+        '2FA TOTP verification failed - invalid code',
+        userId: widget.userId,
+      ),
+    );
+
+    setState(() {
+      _isVerifying = false;
+      _error = 'Invalid code. Check your authenticator app and try again.';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black.withValues(alpha: 0.25),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Card(
+                elevation: 12,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.security, color: Colors.deepOrange),
+                          SizedBox(width: 10),
+                          Text(
+                            '2-Step Verification',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 17,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange.shade200),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.phone_android, color: Colors.deepOrange),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Open your authenticator app and enter the 6-digit code.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      TextField(
+                        controller: _codeController,
+                        focusNode: _otpFocusNode,
+                        autofocus: false,
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        textAlign: TextAlign.center,
+                        onSubmitted: (_) => _handleVerify(),
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 8,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: '000000',
+                          counterText: '',
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _error!,
+                          style: const TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: (_isVerifying || _didComplete)
+                                ? null
+                                : () {
+                                    _didComplete = true;
+                                    Navigator.of(context).pop(false);
+                                  },
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: (_isVerifying || _didComplete)
+                                ? null
+                                : _handleVerify,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.deepOrange,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: _isVerifying
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text('Verify'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 // Full-screen reCAPTCHA page (mobile only)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
 class _RecaptchaPage extends StatefulWidget {
   const _RecaptchaPage();
@@ -1384,7 +1446,7 @@ class _RecaptchaPageState extends State<_RecaptchaPage> {
                   Icon(Icons.check_circle, color: Colors.green),
                   SizedBox(width: 8),
                   Text(
-                    'Verified! Redirecting…',
+                    'Verified! RedirectingΓÇª',
                     style: TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.w600,

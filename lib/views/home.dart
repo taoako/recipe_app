@@ -275,7 +275,7 @@ class _HomePageState extends State<HomePage> {
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 20,
-                childAspectRatio: 0.90,
+                childAspectRatio: 0.9,
               ),
               itemCount: recipes.length,
               itemBuilder: (context, index) {
@@ -343,7 +343,7 @@ class _HomePageState extends State<HomePage> {
             crossAxisCount: 2,
             crossAxisSpacing: 12,
             mainAxisSpacing: 20,
-            childAspectRatio: 0.90,
+            childAspectRatio: 0.9,
           ),
           itemCount: recipes.length,
           itemBuilder: (context, index) {
@@ -539,7 +539,7 @@ class _FoodGridItemState extends State<_FoodGridItem> {
                     child: GestureDetector(
                       onTap: _handleLike,
                       child: CircleAvatar(
-                        backgroundColor: Colors.white.withOpacity(0.9),
+                        backgroundColor: Colors.white.withValues(alpha: 0.9),
                         radius: 16,
                         child: _isLoading
                             ? const SizedBox(

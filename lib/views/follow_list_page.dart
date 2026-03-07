@@ -181,7 +181,7 @@ class _UserList extends StatelessWidget {
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.orange.withOpacity(0.1),
+                            color: Colors.orange.withValues(alpha: 0.1),
                             blurRadius: 6,
                             offset: const Offset(0, 3),
                           ),

@@ -78,7 +78,16 @@ class _ModeratorPageState extends State<ModeratorPage> {
     ),
   ];
 
-  static const _pages = [ModeratorReportsTab(), AdminAnnouncementsPage()];
+  Widget _buildSelectedPage() {
+    switch (_selectedIndex) {
+      case 0:
+        return const ModeratorReportsTab();
+      case 1:
+        return const AdminAnnouncementsPage();
+      default:
+        return const ModeratorReportsTab();
+    }
+  }
 
   static const _titles = ['Post Reports', 'Announcements'];
 
@@ -226,9 +235,7 @@ class _ModeratorPageState extends State<ModeratorPage> {
           }).toList(),
         ),
         const VerticalDivider(width: 1),
-        Expanded(
-          child: IndexedStack(index: _selectedIndex, children: _pages),
-        ),
+        Expanded(child: _buildSelectedPage()),
       ],
     );
   }
@@ -237,9 +244,7 @@ class _ModeratorPageState extends State<ModeratorPage> {
   Widget _narrowLayout() {
     return Column(
       children: [
-        Expanded(
-          child: IndexedStack(index: _selectedIndex, children: _pages),
-        ),
+        Expanded(child: _buildSelectedPage()),
         _buildBottomNav(),
       ],
     );

@@ -115,6 +115,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       if (authUser != null) {
         if (_emailController.text.trim().isNotEmpty &&
             _emailController.text.trim() != authUser.email) {
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -214,7 +215,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         children: [
                           CircleAvatar(
                             radius: 55,
-                            backgroundColor: Colors.orange.withOpacity(0.2),
+                            backgroundColor: Colors.orange.withValues(alpha: 0.2),
                             backgroundImage: profileImageProvider,
                             child: profileImageProvider == null
                                 ? const Icon(

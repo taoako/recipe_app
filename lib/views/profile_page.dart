@@ -32,21 +32,37 @@ class _ProfilePageState extends State<ProfilePage> {
     final firebaseUser = FirebaseAuth.instance.currentUser;
     if (firebaseUser == null) return;
 
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(firebaseUser.uid)
-        .get();
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(firebaseUser.uid)
+          .get();
 
-    if (!doc.exists) return;
+      if (!doc.exists) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Unable to load profile data.')),
+          );
+        }
+        return;
+      }
 
-    final data = doc.data() ?? <String, dynamic>{};
-    data['uid'] = data['uid'] ?? firebaseUser.uid;
-    final appUser = AppUser.fromJson(Map<String, dynamic>.from(data));
+      final data = doc.data() ?? <String, dynamic>{};
+      data['uid'] = data['uid'] ?? firebaseUser.uid;
+      final appUser = AppUser.fromJson(Map<String, dynamic>.from(data));
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => EditProfilePage(user: appUser)),
-    );
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => EditProfilePage(user: appUser)),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to open profile editor.')),
+        );
+      }
+    }
   }
 
   /// Show a dialog to enable / disable Two-Factor Authentication.
@@ -296,138 +312,157 @@ class _ProfilePageState extends State<ProfilePage> {
         child: Column(
           children: [
             // 🖼 Header with blurred background
-            Stack(
-              children: [
-                Container(
-                  height: 290,
-                  decoration: const BoxDecoration(
-                    image: DecorationImage(
-                      image: AssetImage('assets/backgroundpic.jpg'),
-                      fit: BoxFit.cover,
+            SizedBox(
+              height: 290,
+              child: Stack(
+                fit: StackFit.expand,
+                clipBehavior: Clip.hardEdge,
+                children: [
+                  Container(
+                    decoration: const BoxDecoration(
+                      image: DecorationImage(
+                        image: AssetImage('assets/backgroundpic.jpg'),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        color: Colors.black.withValues(alpha: 0.4),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: SingleChildScrollView(
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(height: 20),
+
+                          // Profile Picture with Edit Button
+                          SizedBox(
+                            width: 130,
+                            height: 130,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              alignment: Alignment.center,
+                              children: [
+                                CircleAvatar(
+                                  radius: 55,
+                                  backgroundColor: Colors.white,
+                                  child: CircleAvatar(
+                                    radius: 52,
+                                    backgroundImage:
+                                        (user != null &&
+                                            user.photoURL != null &&
+                                            user.photoURL!.isNotEmpty)
+                                        ? NetworkImage(user.photoURL!)
+                                        : null,
+                                    child:
+                                        (user == null ||
+                                            user.photoURL == null ||
+                                            user.photoURL!.isEmpty)
+                                        ? const Icon(
+                                            Icons.person,
+                                            size: 40,
+                                            color: Colors.grey,
+                                          )
+                                        : null,
+                                  ),
+                                ),
+                                Positioned(
+                                  right: 6,
+                                  bottom: 6,
+                                  child: GestureDetector(
+                                    onTap: _pickImage,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    padding: const EdgeInsets.all(6),
+                                    child: const Icon(
+                                      Icons.add,
+                                      color: Colors.white,
+                                      size: 22,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        // User name
+                        Text(
+                          user?.displayName ?? "Unknown User",
+                          style: const TextStyle(
+                            fontSize: 20,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        const SizedBox(height: 15),
+
+                        // Stats row
+                        StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                          stream: FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(user?.uid)
+                              .snapshots(),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData || !snapshot.data!.exists) {
+                              return _buildStats(0, 0, 0);
+                            }
+                            final data = snapshot.data!.data() ?? {};
+                            final followers =
+                                (data['followers'] as List<dynamic>? ?? [])
+                                    .length;
+                            final following =
+                                (data['following'] as List<dynamic>? ?? [])
+                                    .length;
+                            return StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('recipes')
+                                  .where('authorId', isEqualTo: user?.uid)
+                                  .snapshots(),
+                              builder: (context, snap) {
+                                int recipes = 0;
+                                if (snap.hasData) {
+                                  recipes = snap.data!.docs.where((doc) {
+                                    final data =
+                                        doc.data() as Map<String, dynamic>;
+                                    final archived =
+                                        data['isArchived'] == true ||
+                                        data['isArchived'] == 'true';
+                                    return !archived; // exclude archived from public count
+                                  }).length;
+                                }
+                                return _buildStats(
+                                  recipes,
+                                  following,
+                                  followers,
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                Positioned.fill(
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(color: Colors.black.withOpacity(0.4)),
-                  ),
-                ),
-                Positioned.fill(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 20),
-
-                      // Profile Picture with Edit Button
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          CircleAvatar(
-                            radius: 55,
-                            backgroundColor: Colors.white,
-                            child: CircleAvatar(
-                              radius: 52,
-                              backgroundImage:
-                                  (user != null &&
-                                      user.photoURL != null &&
-                                      user.photoURL!.isNotEmpty)
-                                  ? NetworkImage(user.photoURL!)
-                                  : null,
-                              child:
-                                  (user == null ||
-                                      user.photoURL == null ||
-                                      user.photoURL!.isEmpty)
-                                  ? const Icon(
-                                      Icons.person,
-                                      size: 40,
-                                      color: Colors.grey,
-                                    )
-                                  : null,
-                            ),
-                          ),
-                          Positioned(
-                            right: MediaQuery.of(context).size.width / 2 - 70,
-                            bottom: 4,
-                            child: GestureDetector(
-                              onTap: _pickImage,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.orange,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 2,
-                                  ),
-                                ),
-                                padding: const EdgeInsets.all(6),
-                                child: const Icon(
-                                  Icons.add,
-                                  color: Colors.white,
-                                  size: 22,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      // User name
-                      Text(
-                        user?.displayName ?? "Unknown User",
-                        style: const TextStyle(
-                          fontSize: 20,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(height: 15),
-
-                      // Stats row
-                      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                        stream: FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(user?.uid)
-                            .snapshots(),
-                        builder: (context, snapshot) {
-                          if (!snapshot.hasData || !snapshot.data!.exists) {
-                            return _buildStats(0, 0, 0);
-                          }
-                          final data = snapshot.data!.data() ?? {};
-                          final followers =
-                              (data['followers'] as List<dynamic>? ?? [])
-                                  .length;
-                          final following =
-                              (data['following'] as List<dynamic>? ?? [])
-                                  .length;
-                          return StreamBuilder<QuerySnapshot>(
-                            stream: FirebaseFirestore.instance
-                                .collection('recipes')
-                                .where('authorId', isEqualTo: user?.uid)
-                                .snapshots(),
-                            builder: (context, snap) {
-                              int recipes = 0;
-                              if (snap.hasData) {
-                                recipes = snap.data!.docs.where((doc) {
-                                  final data =
-                                      doc.data() as Map<String, dynamic>;
-                                  final archived =
-                                      data['isArchived'] == true ||
-                                      data['isArchived'] == 'true';
-                                  return !archived; // exclude archived from public count
-                                }).length;
-                              }
-                              return _buildStats(recipes, following, followers);
-                            },
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
 
             // ✨ Smooth rounded transition
@@ -658,7 +693,7 @@ class _ProfilePageState extends State<ProfilePage> {
             crossAxisCount: 2,
             crossAxisSpacing: 12,
             mainAxisSpacing: 20,
-            childAspectRatio: 1.10,
+            childAspectRatio: 1.1,
           ),
           itemCount: docs.length,
           itemBuilder: (context, index) {
@@ -711,7 +746,7 @@ class _ProfilePageState extends State<ProfilePage> {
             crossAxisCount: 2,
             crossAxisSpacing: 12,
             mainAxisSpacing: 20,
-            childAspectRatio: 0.90,
+            childAspectRatio: 0.9,
           ),
           itemCount: docs.length,
           itemBuilder: (context, index) {
@@ -865,10 +900,11 @@ class _ProfileRecipeCardState extends State<_ProfileRecipeCard> {
     final int originalLikesCount = _likesCount;
 
     setState(() {
-      if (_isLiked)
+      if (_isLiked) {
         _likesCount--;
-      else
+      } else {
         _likesCount++;
+      }
       _isLiked = !_isLiked;
     });
 
@@ -908,8 +944,8 @@ class _ProfileRecipeCardState extends State<_ProfileRecipeCard> {
     final recipe = widget.recipe;
 
     // Archived posts are fully disabled; hidden posts remain actionable
-    final bool isArchived = recipe.isArchived == true;
-    final bool isHidden = recipe.isHidden == true;
+    final bool isArchived = recipe.isArchived;
+    final bool isHidden = recipe.isHidden;
     final bool isDisabled = isArchived; // only archived fully disabled
 
     return Column(
@@ -1000,7 +1036,7 @@ class _ProfileRecipeCardState extends State<_ProfileRecipeCard> {
                   Positioned.fill(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.35),
+                        color: Colors.black.withValues(alpha: 0.35),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Align(
@@ -1014,8 +1050,8 @@ class _ProfileRecipeCardState extends State<_ProfileRecipeCard> {
                             ),
                             decoration: BoxDecoration(
                               color: isArchived
-                                  ? Colors.red.withOpacity(0.8)
-                                  : Colors.orange.withOpacity(0.8),
+                                  ? Colors.red.withValues(alpha: 0.8)
+                                  : Colors.orange.withValues(alpha: 0.8),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Row(
@@ -1053,7 +1089,7 @@ class _ProfileRecipeCardState extends State<_ProfileRecipeCard> {
                     child: GestureDetector(
                       onTap: _handleLike,
                       child: CircleAvatar(
-                        backgroundColor: Colors.white.withOpacity(0.9),
+                        backgroundColor: Colors.white.withValues(alpha: 0.9),
                         radius: 16,
                         child: _isLoading
                             ? const SizedBox(
@@ -1081,7 +1117,7 @@ class _ProfileRecipeCardState extends State<_ProfileRecipeCard> {
                     top: 8,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withValues(alpha: 0.5),
                         shape: BoxShape.circle,
                       ),
                       child: PopupMenuButton<String>(

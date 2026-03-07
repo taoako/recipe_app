@@ -22,21 +22,31 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
 
   Future<void> _toggleFollow() async {
     if (_currentUser == null || _isProcessingFollow) return;
+    if (_currentUser.uid == widget.userId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You cannot follow yourself')),
+      );
+      return;
+    }
     setState(() => _isProcessingFollow = true);
     final currentUid = _currentUser.uid;
 
     try {
-      final currentUserSnap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUid)
-          .get();
-      final currentUserData = currentUserSnap.data() ?? {};
+      final snapshots = await Future.wait([
+        FirebaseFirestore.instance.collection('users').doc(currentUid).get(),
+        FirebaseFirestore.instance.collection('users').doc(widget.userId).get(),
+      ]);
+
+      final currentUserData = snapshots[0].data() ?? {};
+      final targetUserData = snapshots[1].data() ?? {};
       final username =
           currentUserData['username'] ?? currentUserData['name'] ?? 'Someone';
       final profileImageUrl =
           currentUserData['photoUrl'] ??
           currentUserData['profileImageUrl'] ??
           '';
+      final targetName =
+          targetUserData['username'] ?? targetUserData['name'] ?? 'this user';
 
       final service = FollowService();
       final nowFollowing = await service.toggleFollow(
@@ -46,10 +56,13 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
         profileImageUrl,
       );
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            nowFollowing ? 'Followed $username' : 'Unfollowed $username',
+            nowFollowing
+                ? 'You followed $targetName'
+                : 'You unfollowed $targetName',
           ),
         ),
       );
@@ -137,7 +150,9 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                     Positioned.fill(
                       child: BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(color: Colors.black.withOpacity(0.4)),
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.4),
+                        ),
                       ),
                     ),
                     Positioned.fill(
@@ -166,42 +181,43 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeInOut,
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: isFollowing
-                                    ? Colors.grey[700]
-                                    : Colors.orange,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30),
+                          if (currentUid != widget.userId)
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeInOut,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isFollowing
+                                      ? Colors.grey[700]
+                                      : Colors.orange,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 26,
+                                    vertical: 10,
+                                  ),
+                                  elevation: 3,
                                 ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 26,
-                                  vertical: 10,
-                                ),
-                                elevation: 3,
+                                onPressed: _toggleFollow,
+                                child: _isProcessingFollow
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : Text(
+                                        isFollowing ? "Following" : "Follow",
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
                               ),
-                              onPressed: _toggleFollow,
-                              child: _isProcessingFollow
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : Text(
-                                      isFollowing ? "Following" : "Follow",
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
                             ),
-                          ),
                           const SizedBox(height: 15),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -363,7 +379,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
             crossAxisCount: 2,
             crossAxisSpacing: 12,
             mainAxisSpacing: 20,
-            childAspectRatio: 1.00,
+            childAspectRatio: 1.0,
           ),
           itemCount: docs.length,
           itemBuilder: (context, index) {
@@ -387,7 +403,7 @@ class _OtherUserProfilePageState extends State<OtherUserProfilePage> {
                   borderRadius: BorderRadius.circular(15),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha: 0.08),
                       blurRadius: 6,
                       offset: const Offset(0, 3),
                     ),
