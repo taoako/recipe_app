@@ -67,6 +67,47 @@ class InputValidator {
     return null;
   }
 
+  /// Validates a required text field with an optional length limit.
+  static String? validateRequiredText(
+    String? value,
+    String fieldName, {
+    int? maxLength,
+  }) {
+    final normalized = value?.trim() ?? '';
+    if (normalized.isEmpty) {
+      return '$fieldName is required';
+    }
+    if (maxLength != null && normalized.length > maxLength) {
+      return '$fieldName must be $maxLength characters or less';
+    }
+    return null;
+  }
+
+  /// Validates a positive whole-number field within an allowed range.
+  static String? validatePositiveInteger(
+    String? value,
+    String fieldName, {
+    int min = 1,
+    int max = 300,
+  }) {
+    final normalized = value?.trim() ?? '';
+    if (normalized.isEmpty) {
+      return '$fieldName is required';
+    }
+    if (!RegExp(r'^\d+$').hasMatch(normalized)) {
+      return '$fieldName must contain digits only';
+    }
+
+    final parsed = int.tryParse(normalized);
+    if (parsed == null) {
+      return '$fieldName must be a valid whole number';
+    }
+    if (parsed < min || parsed > max) {
+      return '$fieldName must be between $min and $max';
+    }
+    return null;
+  }
+
   /// Sanitizes a string by trimming and limiting its length.
   static String sanitize(String input, int maxLength) {
     final trimmed = input.trim();

@@ -381,86 +381,86 @@ class _ProfilePageState extends State<ProfilePage> {
                                     child: Container(
                                       decoration: BoxDecoration(
                                         color: Colors.orange,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 2,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.white,
+                                          width: 2,
+                                        ),
                                       ),
-                                    ),
-                                    padding: const EdgeInsets.all(6),
-                                    child: const Icon(
-                                      Icons.add,
-                                      color: Colors.white,
-                                      size: 22,
+                                      padding: const EdgeInsets.all(6),
+                                      child: const Icon(
+                                        Icons.add,
+                                        color: Colors.white,
+                                        size: 22,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
 
-                        const SizedBox(height: 10),
+                          const SizedBox(height: 10),
 
-                        // User name
-                        Text(
-                          user?.displayName ?? "Unknown User",
-                          style: const TextStyle(
-                            fontSize: 20,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                          // User name
+                          Text(
+                            user?.displayName ?? "Unknown User",
+                            style: const TextStyle(
+                              fontSize: 20,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
 
-                        const SizedBox(height: 15),
+                          const SizedBox(height: 15),
 
-                        // Stats row
-                        StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                          stream: FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(user?.uid)
-                              .snapshots(),
-                          builder: (context, snapshot) {
-                            if (!snapshot.hasData || !snapshot.data!.exists) {
-                              return _buildStats(0, 0, 0);
-                            }
-                            final data = snapshot.data!.data() ?? {};
-                            final followers =
-                                (data['followers'] as List<dynamic>? ?? [])
-                                    .length;
-                            final following =
-                                (data['following'] as List<dynamic>? ?? [])
-                                    .length;
-                            return StreamBuilder<QuerySnapshot>(
-                              stream: FirebaseFirestore.instance
-                                  .collection('recipes')
-                                  .where('authorId', isEqualTo: user?.uid)
-                                  .snapshots(),
-                              builder: (context, snap) {
-                                int recipes = 0;
-                                if (snap.hasData) {
-                                  recipes = snap.data!.docs.where((doc) {
-                                    final data =
-                                        doc.data() as Map<String, dynamic>;
-                                    final archived =
-                                        data['isArchived'] == true ||
-                                        data['isArchived'] == 'true';
-                                    return !archived; // exclude archived from public count
-                                  }).length;
-                                }
-                                return _buildStats(
-                                  recipes,
-                                  following,
-                                  followers,
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ],
+                          // Stats row
+                          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                            stream: FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(user?.uid)
+                                .snapshots(),
+                            builder: (context, snapshot) {
+                              if (!snapshot.hasData || !snapshot.data!.exists) {
+                                return _buildStats(0, 0, 0);
+                              }
+                              final data = snapshot.data!.data() ?? {};
+                              final followers =
+                                  (data['followers'] as List<dynamic>? ?? [])
+                                      .length;
+                              final following =
+                                  (data['following'] as List<dynamic>? ?? [])
+                                      .length;
+                              return StreamBuilder<QuerySnapshot>(
+                                stream: FirebaseFirestore.instance
+                                    .collection('recipes')
+                                    .where('authorId', isEqualTo: user?.uid)
+                                    .snapshots(),
+                                builder: (context, snap) {
+                                  int recipes = 0;
+                                  if (snap.hasData) {
+                                    recipes = snap.data!.docs.where((doc) {
+                                      final data =
+                                          doc.data() as Map<String, dynamic>;
+                                      final archived =
+                                          data['isArchived'] == true ||
+                                          data['isArchived'] == 'true';
+                                      return !archived; // exclude archived from public count
+                                    }).length;
+                                  }
+                                  return _buildStats(
+                                    recipes,
+                                    following,
+                                    followers,
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
                 ],
               ),
             ),

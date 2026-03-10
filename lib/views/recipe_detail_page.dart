@@ -17,7 +17,7 @@ class RecipeDetailPage extends StatelessWidget {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
       return Scaffold(
-        body: Center(child: Text('Please log in to view recipe details')),
+        body: Center(child: const Text('Please log in to view recipe details')),
       );
     }
     final currentUid = currentUser.uid;
@@ -122,7 +122,7 @@ class RecipeDetailPage extends StatelessWidget {
                         )
                       : Container(color: Colors.grey.shade300),
                   Container(
-                    color: Colors.black.withOpacity(0.35), // dark overlay
+                    color: Colors.black.withValues(alpha: 0.35), // dark overlay
                   ),
                 ],
               ),

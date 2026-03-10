@@ -41,24 +41,33 @@ class _AdminPageState extends State<AdminPage> {
       }
       return;
     }
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      final role = AccessControlService.roleFromFirestore(doc.data());
-      if (role != AppRole.admin) {
-        AppLogger.logWarning(
-          LogEvent.accessViolation,
-          'Non-admin tried to access AdminPage',
-          userId: user.uid,
-          metadata: {'role': role.name},
-        );
-        if (mounted) setState(() => _accessDenied = true);
-        return;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        if (attempt > 0) {
+          await Future.delayed(Duration(milliseconds: 500 * attempt));
+          await user.getIdToken(true);
+        }
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        final role = AccessControlService.roleFromFirestore(doc.data());
+        if (role != AppRole.admin) {
+          AppLogger.logWarning(
+            LogEvent.accessViolation,
+            'Non-admin tried to access AdminPage',
+            userId: user.uid,
+            metadata: {'role': role.name},
+          );
+          if (mounted) setState(() => _accessDenied = true);
+          return;
+        }
+        break;
+      } catch (_) {
+        if (attempt == 2) {
+          // All retries exhausted — allow through; server rules enforce
+        }
       }
-    } catch (_) {
-      // Firestore read failure — allow through; server rules enforce
     }
     if (mounted) setState(() => _roleVerified = true);
   }
@@ -92,13 +101,22 @@ class _AdminPageState extends State<AdminPage> {
     ),
   ];
 
-  static const _pages = <Widget>[
-    AdminAnalyticsPage(),
-    AdminUsersPage(),
-    AdminIncidentResponsePage(),
-    AdminUserReportsPage(),
-    AdminLogsPage(),
-  ];
+  Widget _buildSelectedPage() {
+    switch (_selectedIndex) {
+      case 0:
+        return const AdminAnalyticsPage();
+      case 1:
+        return const AdminUsersPage();
+      case 2:
+        return const AdminIncidentResponsePage();
+      case 3:
+        return const AdminUserReportsPage();
+      case 4:
+        return const AdminLogsPage();
+      default:
+        return const AdminAnalyticsPage();
+    }
+  }
 
   static const _titles = [
     'Dashboard',
@@ -348,15 +366,13 @@ class _AdminPageState extends State<AdminPage> {
           ),
         ),
         const VerticalDivider(thickness: 0, width: 0),
-        Expanded(
-          child: IndexedStack(index: _selectedIndex, children: _pages),
-        ),
+        Expanded(child: _buildSelectedPage()),
       ],
     );
   }
 
   Widget _narrowLayout() {
-    return IndexedStack(index: _selectedIndex, children: _pages);
+    return _buildSelectedPage();
   }
 
   Widget _buildBottomNav() {

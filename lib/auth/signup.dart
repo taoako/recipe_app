@@ -223,15 +223,31 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       if (!mounted) return;
 
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .get();
+      // Force token refresh so Firestore recognises the new session
+      await userCredential.user!.getIdToken(true);
 
-      final userData = userDoc.data();
+      Map<String, dynamic>? userData;
+      for (var attempt = 0; attempt < 3; attempt++) {
+        try {
+          if (attempt > 0) {
+            await Future.delayed(Duration(milliseconds: 500 * attempt));
+            await userCredential.user!.getIdToken(true);
+          }
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userCredential.user!.uid)
+              .get();
+          userData = userDoc.data();
+          break;
+        } catch (_) {
+          if (attempt == 2) rethrow;
+        }
+      }
+
       final isAdmin = userData?['isAdmin'] ?? false;
       final role = userData?['role']?.toString() ?? 'user';
 
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -401,7 +417,7 @@ Password Tips:
                   borderRadius: BorderRadius.circular(25),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 10,
                       offset: const Offset(0, 5),
                     ),

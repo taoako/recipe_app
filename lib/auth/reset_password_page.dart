@@ -153,7 +153,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.deepOrange.withOpacity(0.15),
+                      color: Colors.deepOrange.withValues(alpha: 0.15),
                       blurRadius: 15,
                       offset: const Offset(0, 5),
                     ),

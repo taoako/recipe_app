@@ -6,13 +6,15 @@ import '../services/access_control_service.dart';
 import '../services/app_logger.dart';
 import 'access_denied_page.dart';
 import 'moderator_reports_tab.dart';
+import 'moderator_appeals_tab.dart';
 import 'admin_announcements_page.dart';
 
 /// Navigation shell for Moderator role.
 ///
 /// Moderators see:
 ///   1. Reports   — review flagged posts
-///   2. Announce  — send announcements to users
+///   2. Appeals   — review user appeals to unhide posts
+///   3. Announce  — send announcements to users
 class ModeratorPage extends StatefulWidget {
   const ModeratorPage({super.key});
 
@@ -43,24 +45,36 @@ class _ModeratorPageState extends State<ModeratorPage> {
       }
       return;
     }
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      final role = AccessControlService.roleFromFirestore(doc.data());
-      if (!AccessControlService.hasAccess(role, SystemFeature.reviewReports)) {
-        AppLogger.logWarning(
-          LogEvent.accessViolation,
-          'Unauthorized user tried to access ModeratorPage',
-          userId: user.uid,
-          metadata: {'role': role.name},
-        );
-        if (mounted) setState(() => _accessDenied = true);
-        return;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        if (attempt > 0) {
+          await Future.delayed(Duration(milliseconds: 500 * attempt));
+          await user.getIdToken(true);
+        }
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        final role = AccessControlService.roleFromFirestore(doc.data());
+        if (!AccessControlService.hasAccess(
+          role,
+          SystemFeature.reviewReports,
+        )) {
+          AppLogger.logWarning(
+            LogEvent.accessViolation,
+            'Unauthorized user tried to access ModeratorPage',
+            userId: user.uid,
+            metadata: {'role': role.name},
+          );
+          if (mounted) setState(() => _accessDenied = true);
+          return;
+        }
+        break;
+      } catch (_) {
+        if (attempt == 2) {
+          // All retries exhausted — allow through; server rules enforce
+        }
       }
-    } catch (_) {
-      // Firestore read failure — allow through; server rules enforce
     }
     if (mounted) setState(() => _roleVerified = true);
   }
@@ -70,6 +84,11 @@ class _ModeratorPageState extends State<ModeratorPage> {
       icon: Icons.report_outlined,
       selectedIcon: Icons.report_rounded,
       label: 'Reports',
+    ),
+    _NavDest(
+      icon: Icons.gavel_outlined,
+      selectedIcon: Icons.gavel_rounded,
+      label: 'Appeals',
     ),
     _NavDest(
       icon: Icons.campaign_outlined,
@@ -83,13 +102,15 @@ class _ModeratorPageState extends State<ModeratorPage> {
       case 0:
         return const ModeratorReportsTab();
       case 1:
+        return const ModeratorAppealsTab();
+      case 2:
         return const AdminAnnouncementsPage();
       default:
         return const ModeratorReportsTab();
     }
   }
 
-  static const _titles = ['Post Reports', 'Announcements'];
+  static const _titles = ['Post Reports', 'Appeals', 'Announcements'];
 
   // ── Logout ──────────────────────────────────────────────────────────────────
   Future<void> _logout() async {

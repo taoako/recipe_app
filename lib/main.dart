@@ -63,7 +63,7 @@ class MyApp extends StatelessWidget {
           feature: SystemFeature.viewNotifications,
           child: NotificationPage(),
         ),
-        '/profile': (context) => RouteGuard(
+        '/profile': (context) => const RouteGuard(
           feature: SystemFeature.viewOwnRecords,
           child: ProfilePage(),
         ),

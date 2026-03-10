@@ -781,10 +781,8 @@ class SecurityService {
         settings: const RouteSettings(name: '/two-factor-verify'),
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
-        pageBuilder: (_, __, ___) => _TwoFactorVerifyPage(
-          userId: userId,
-          secret: secret,
-        ),
+        pageBuilder: (_, __, ___) =>
+            _TwoFactorVerifyPage(userId: userId, secret: secret),
       ),
     );
 
@@ -1336,7 +1334,10 @@ class _TwoFactorVerifyPageState extends State<_TwoFactorVerifyPage> {
                         const SizedBox(height: 8),
                         Text(
                           _error!,
-                          style: const TextStyle(color: Colors.red, fontSize: 12),
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                       const SizedBox(height: 16),

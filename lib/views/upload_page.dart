@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,10 +22,13 @@ class _UploadPageState extends State<UploadPage> {
   // Inputs
   final TextEditingController foodNameController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
+  late final TextEditingController durationController;
   final List<TextEditingController> ingredientControllers = [
     TextEditingController(),
   ];
   final List<TextEditingController> stepControllers = [TextEditingController()];
+  final List<String?> ingredientErrors = [null];
+  final List<String?> stepErrors = [null];
 
   // Images - Use Uint8List for web compatibility
   Uint8List? coverImageBytes;
@@ -32,6 +36,9 @@ class _UploadPageState extends State<UploadPage> {
 
   double cookingDuration = 30;
   String selectedCategory = "Food";
+  String? _foodNameError;
+  String? _descriptionError;
+  String? _durationError;
 
   final ImagePicker _picker = ImagePicker();
   final CloudinaryService _cloudinary = CloudinaryService();
@@ -43,9 +50,15 @@ class _UploadPageState extends State<UploadPage> {
   @override
   void initState() {
     super.initState();
+    durationController = TextEditingController(
+      text: cookingDuration.round().toString(),
+    );
     // always at least one step field and one slot for image
     if (stepControllers.isEmpty) {
       stepControllers.add(TextEditingController());
+      stepImageBytesList.add(null);
+    }
+    if (stepImageBytesList.isEmpty) {
       stepImageBytesList.add(null);
     }
   }
@@ -135,7 +148,10 @@ class _UploadPageState extends State<UploadPage> {
 
   // ---------------- add/remove fields ----------------
   void addIngredient() {
-    setState(() => ingredientControllers.add(TextEditingController()));
+    setState(() {
+      ingredientControllers.add(TextEditingController());
+      ingredientErrors.add(null);
+    });
   }
 
   void removeIngredient(int index) {
@@ -143,6 +159,7 @@ class _UploadPageState extends State<UploadPage> {
     setState(() {
       ingredientControllers[index].dispose();
       ingredientControllers.removeAt(index);
+      ingredientErrors.removeAt(index);
     });
   }
 
@@ -150,6 +167,7 @@ class _UploadPageState extends State<UploadPage> {
     setState(() {
       stepControllers.add(TextEditingController());
       stepImageBytesList.add(null);
+      stepErrors.add(null);
     });
   }
 
@@ -159,7 +177,100 @@ class _UploadPageState extends State<UploadPage> {
       stepControllers[index].dispose();
       stepControllers.removeAt(index);
       stepImageBytesList.removeAt(index);
+      stepErrors.removeAt(index);
     });
+  }
+
+  String? _validateFoodName() {
+    final value = foodNameController.text;
+    final required = InputValidator.validateRequiredText(value, 'Food name');
+    if (required != null) return required;
+    return InputValidator.validateTitle(value);
+  }
+
+  String? _validateDescriptionField() {
+    final required = InputValidator.validateRequiredText(
+      descriptionController.text,
+      'Description',
+      maxLength: InputValidator.maxDescriptionLength,
+    );
+    if (required != null) return required;
+    return InputValidator.validateDescription(descriptionController.text);
+  }
+
+  String? _validateDurationField() {
+    return InputValidator.validatePositiveInteger(
+      durationController.text,
+      'Cooking duration',
+      min: 1,
+      max: 300,
+    );
+  }
+
+  String? _validateIngredientField(int index) {
+    return InputValidator.validateRequiredText(
+      ingredientControllers[index].text,
+      'Ingredient',
+      maxLength: InputValidator.maxIngredientLength,
+    );
+  }
+
+  String? _validateStepField(int index) {
+    return InputValidator.validateRequiredText(
+      stepControllers[index].text,
+      'Step ${index + 1}',
+      maxLength: InputValidator.maxStepLength,
+    );
+  }
+
+  void _setDurationValue(int value) {
+    final clamped = value.clamp(1, 300);
+    cookingDuration = clamped.toDouble();
+    durationController.value = TextEditingValue(
+      text: clamped.toString(),
+      selection: TextSelection.collapsed(offset: clamped.toString().length),
+    );
+  }
+
+  bool _validateStepOne() {
+    final foodError = _validateFoodName();
+    final descriptionError = _validateDescriptionField();
+    final durationError = _validateDurationField();
+
+    setState(() {
+      _foodNameError = foodError;
+      _descriptionError = descriptionError;
+      _durationError = durationError;
+    });
+
+    if (durationError == null) {
+      _setDurationValue(int.parse(durationController.text.trim()));
+    }
+
+    return foodError == null && descriptionError == null && durationError == null;
+  }
+
+  bool _validateStepTwo() {
+    final nextIngredientErrors = List<String?>.generate(
+      ingredientControllers.length,
+      _validateIngredientField,
+    );
+    final nextStepErrors = List<String?>.generate(
+      stepControllers.length,
+      _validateStepField,
+    );
+
+    setState(() {
+      for (int i = 0; i < ingredientErrors.length; i++) {
+        ingredientErrors[i] = nextIngredientErrors[i];
+      }
+      for (int i = 0; i < stepErrors.length; i++) {
+        stepErrors[i] = nextStepErrors[i];
+      }
+    });
+
+    return !nextIngredientErrors.any((e) => e != null) &&
+        !nextStepErrors.any((e) => e != null);
   }
 
   // ---------------- upload flow ----------------
@@ -171,26 +282,10 @@ class _UploadPageState extends State<UploadPage> {
       );
       return;
     }
-    if (foodNameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please enter a food name')));
-      return;
-    }
-    final titleError = InputValidator.validateTitle(foodNameController.text);
-    if (titleError != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(titleError)));
-      return;
-    }
-    final descError = InputValidator.validateDescription(
-      descriptionController.text,
-    );
-    if (descError != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(descError)));
+    if (!_validateStepOne() || !_validateStepTwo()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fix the highlighted fields.')),
+      );
       return;
     }
     if (coverImageBytes == null) {
@@ -306,7 +401,7 @@ class _UploadPageState extends State<UploadPage> {
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [accentColor, accentColor.withOpacity(0.85)],
+              colors: [accentColor, accentColor.withValues(alpha: 0.85)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -316,7 +411,7 @@ class _UploadPageState extends State<UploadPage> {
             ),
             boxShadow: [
               BoxShadow(
-                color: accentColor.withOpacity(0.25),
+                color: accentColor.withValues(alpha: 0.25),
                 blurRadius: 8,
                 offset: const Offset(0, 4),
               ),
@@ -345,7 +440,7 @@ class _UploadPageState extends State<UploadPage> {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
+                      color: Colors.white.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -397,7 +492,7 @@ class _UploadPageState extends State<UploadPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.10),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 6),
           ),
@@ -425,8 +520,10 @@ class _UploadPageState extends State<UploadPage> {
                     height: 180,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: accentColor.withOpacity(0.25)),
-                      color: accentColor.withOpacity(0.06),
+                      border: Border.all(
+                        color: accentColor.withValues(alpha: 0.25),
+                      ),
+                      color: accentColor.withValues(alpha: 0.06),
                     ),
                     child: coverImageBytes == null
                         ? Center(
@@ -466,8 +563,14 @@ class _UploadPageState extends State<UploadPage> {
                 _sectionTitle("Food Name"),
                 TextField(
                   controller: foodNameController,
+                  maxLength: InputValidator.maxTitleLength,
+                  onChanged: (_) {
+                    setState(() => _foodNameError = _validateFoodName());
+                  },
                   decoration: InputDecoration(
                     hintText: "Enter food name",
+                    counterText: '',
+                    errorText: _foodNameError,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -482,8 +585,16 @@ class _UploadPageState extends State<UploadPage> {
                 TextField(
                   controller: descriptionController,
                   maxLines: 3,
+                  maxLength: InputValidator.maxDescriptionLength,
+                  onChanged: (_) {
+                    setState(
+                      () => _descriptionError = _validateDescriptionField(),
+                    );
+                  },
                   decoration: InputDecoration(
                     hintText: "Describe your dish",
+                    counterText: '',
+                    errorText: _descriptionError,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -506,18 +617,24 @@ class _UploadPageState extends State<UploadPage> {
                     IconButton(
                       icon: const Icon(Icons.remove_circle, color: Colors.red),
                       onPressed: () {
-                        if (cookingDuration > 1)
-                          setState(() => cookingDuration--);
+                        if (cookingDuration > 1) {
+                          setState(() {
+                            _setDurationValue(cookingDuration.round() - 1);
+                            _durationError = _validateDurationField();
+                          });
+                        }
                       },
                     ),
                     Expanded(
                       child: TextField(
-                        controller: TextEditingController(
-                          text: cookingDuration.round().toString(),
-                        ),
+                        controller: durationController,
                         textAlign: TextAlign.center,
                         keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        maxLength: 3,
                         decoration: InputDecoration(
+                          counterText: '',
+                          errorText: _durationError,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -526,17 +643,25 @@ class _UploadPageState extends State<UploadPage> {
                           ),
                         ),
                         onChanged: (val) {
-                          final parsed = int.tryParse(val);
-                          if (parsed != null && parsed > 0)
-                            setState(() => cookingDuration = parsed.toDouble());
+                          setState(() {
+                            _durationError = _validateDurationField();
+                            final parsed = int.tryParse(val);
+                            if (parsed != null && parsed >= 1 && parsed <= 300) {
+                              cookingDuration = parsed.toDouble();
+                            }
+                          });
                         },
                       ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.add_circle, color: Colors.green),
                       onPressed: () {
-                        if (cookingDuration < 300)
-                          setState(() => cookingDuration++);
+                        if (cookingDuration < 300) {
+                          setState(() {
+                            _setDurationValue(cookingDuration.round() + 1);
+                            _durationError = _validateDurationField();
+                          });
+                        }
                       },
                     ),
                   ],
@@ -565,7 +690,17 @@ class _UploadPageState extends State<UploadPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: ElevatedButton(
-              onPressed: () => setState(() => step = 2),
+              onPressed: () {
+                if (!_validateStepOne()) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please fix the highlighted fields.'),
+                    ),
+                  );
+                  return;
+                }
+                setState(() => step = 2);
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: accentColor,
                 minimumSize: const Size(double.infinity, 52),
@@ -605,8 +740,16 @@ class _UploadPageState extends State<UploadPage> {
                         Expanded(
                           child: TextField(
                             controller: ingredientControllers[i],
+                            maxLength: InputValidator.maxIngredientLength,
+                            onChanged: (_) {
+                              setState(() {
+                                ingredientErrors[i] = _validateIngredientField(i);
+                              });
+                            },
                             decoration: InputDecoration(
                               hintText: "Enter ingredient",
+                              counterText: '',
+                              errorText: ingredientErrors[i],
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
@@ -660,8 +803,16 @@ class _UploadPageState extends State<UploadPage> {
                       TextField(
                         controller: stepControllers[i],
                         maxLines: 3,
+                        maxLength: InputValidator.maxStepLength,
+                        onChanged: (_) {
+                          setState(() {
+                            stepErrors[i] = _validateStepField(i);
+                          });
+                        },
                         decoration: InputDecoration(
                           hintText: "Describe step ${i + 1}",
+                          counterText: '',
+                          errorText: stepErrors[i],
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -683,7 +834,7 @@ class _UploadPageState extends State<UploadPage> {
                             label: const Text("Add Step Image"),
                             style: OutlinedButton.styleFrom(
                               side: BorderSide(
-                                color: accentColor.withOpacity(0.3),
+                                color: accentColor.withValues(alpha: 0.3),
                               ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
@@ -724,7 +875,9 @@ class _UploadPageState extends State<UploadPage> {
                     icon: const Icon(Icons.add),
                     label: const Text("Add More Steps"),
                     style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: accentColor.withOpacity(0.6)),
+                      side: BorderSide(
+                        color: accentColor.withValues(alpha: 0.6),
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -745,7 +898,9 @@ class _UploadPageState extends State<UploadPage> {
                     onPressed: () => setState(() => step = 1),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: accentColor,
-                      side: BorderSide(color: accentColor.withOpacity(0.9)),
+                      side: BorderSide(
+                        color: accentColor.withValues(alpha: 0.9),
+                      ),
                       minimumSize: const Size(double.infinity, 52),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
@@ -825,8 +980,13 @@ class _UploadPageState extends State<UploadPage> {
   void dispose() {
     foodNameController.dispose();
     descriptionController.dispose();
-    for (final c in ingredientControllers) c.dispose();
-    for (final c in stepControllers) c.dispose();
+    durationController.dispose();
+    for (final c in ingredientControllers) {
+      c.dispose();
+    }
+    for (final c in stepControllers) {
+      c.dispose();
+    }
     super.dispose();
   }
 }

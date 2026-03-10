@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../model/user.dart';
@@ -27,19 +28,82 @@ class _EditProfilePageState extends State<EditProfilePage> {
   File? _imageFile;
   bool _isLoading = false;
 
+  // Real-time email validation state
+  Timer? _emailDebounce;
+  String? _emailAsyncError;
+  bool _emailChecking = false;
+  bool _emailAvailable = false;
+
   @override
   void initState() {
     super.initState();
     _usernameController = TextEditingController(text: widget.user.username);
     _emailController = TextEditingController(text: widget.user.email);
+    _emailController.addListener(_onEmailChanged);
   }
 
   @override
   void dispose() {
+    _emailDebounce?.cancel();
     _usernameController.dispose();
     _emailController.dispose();
     _bioController.dispose();
     super.dispose();
+  }
+
+  void _onEmailChanged() {
+    final email = _emailController.text.trim();
+    _emailDebounce?.cancel();
+
+    // Reset state immediately
+    setState(() {
+      _emailAsyncError = null;
+      _emailAvailable = false;
+      _emailChecking = false;
+    });
+
+    // Same as current email — no check needed
+    if (email == widget.user.email) return;
+
+    // Basic format check first
+    if (email.isEmpty || !InputValidator.isValidEmail(email)) return;
+
+    setState(() => _emailChecking = true);
+
+    _emailDebounce = Timer(const Duration(milliseconds: 600), () async {
+      if (!mounted) return;
+      try {
+        // Check Firestore for any user doc with this email
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+
+        if (!mounted) return;
+        if (snap.docs.isNotEmpty && snap.docs.first.id != widget.user.uid) {
+          setState(() {
+            _emailAsyncError = 'This email is already taken';
+            _emailChecking = false;
+            _emailAvailable = false;
+          });
+        } else {
+          setState(() {
+            _emailAsyncError = null;
+            _emailChecking = false;
+            _emailAvailable = true;
+          });
+        }
+      } catch (_) {
+        if (mounted) {
+          setState(() {
+            _emailAsyncError = 'Could not verify email availability';
+            _emailChecking = false;
+            _emailAvailable = false;
+          });
+        }
+      }
+    });
   }
 
   Future<void> _pickImage() async {
@@ -67,6 +131,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Block save if async email check found a problem
+    if (_emailAsyncError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_emailAsyncError!), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    if (_emailChecking) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Still verifying email, please wait...'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
     String imageUrl = widget.user.profileImageUrl;
@@ -109,21 +190,39 @@ class _EditProfilePageState extends State<EditProfilePage> {
       await FirebaseFirestore.instance
           .collection("users")
           .doc(widget.user.uid)
-          .set(updatedUser.toJson());
+          .update({
+            'username': _usernameController.text.trim(),
+            'email': _emailController.text.trim(),
+            'profileImageUrl': imageUrl,
+          });
 
       final authUser = FirebaseAuth.instance.currentUser;
       if (authUser != null) {
-        if (_emailController.text.trim().isNotEmpty &&
-            _emailController.text.trim() != authUser.email) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Email change detected. You may need to re-authenticate to update your email.',
+        final newEmail = _emailController.text.trim();
+        if (newEmail.isNotEmpty && newEmail != authUser.email) {
+          // Send verification to the new email address
+          try {
+            await authUser.verifyBeforeUpdateEmail(newEmail);
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'A verification email has been sent to your new address. '
+                  'Please verify it to complete the email change.',
+                ),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 5),
               ),
-              backgroundColor: Colors.orange,
-            ),
-          );
+            );
+          } on FirebaseAuthException catch (e) {
+            if (!mounted) return;
+            final msg = e.code == 'requires-recent-login'
+                ? 'Please log out and log back in, then try changing your email.'
+                : 'Could not send verification email: ${e.message}';
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(msg), backgroundColor: Colors.orange),
+            );
+          }
         }
         await authUser.updateDisplayName(updatedUser.username);
         if (imageUrl.isNotEmpty && imageUrl != authUser.photoURL) {
@@ -215,7 +314,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         children: [
                           CircleAvatar(
                             radius: 55,
-                            backgroundColor: Colors.orange.withValues(alpha: 0.2),
+                            backgroundColor: Colors.orange.withValues(
+                              alpha: 0.2,
+                            ),
                             backgroundImage: profileImageProvider,
                             child: profileImageProvider == null
                                 ? const Icon(
@@ -255,7 +356,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     // Email Field
                     TextFormField(
                       controller: _emailController,
-                      decoration: _inputDecoration("Email"),
+                      decoration: _inputDecoration("Email").copyWith(
+                        suffixIcon: _buildEmailSuffix(),
+                        errorText: _emailAsyncError,
+                      ),
                       keyboardType: TextInputType.emailAddress,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -305,6 +409,31 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ),
             ),
     );
+  }
+
+  Widget? _buildEmailSuffix() {
+    final email = _emailController.text.trim();
+    if (email == widget.user.email || email.isEmpty) return null;
+    if (_emailChecking) {
+      return const Padding(
+        padding: EdgeInsets.all(12),
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.orange,
+          ),
+        ),
+      );
+    }
+    if (_emailAsyncError != null) {
+      return const Icon(Icons.cancel, color: Colors.red);
+    }
+    if (_emailAvailable) {
+      return const Icon(Icons.check_circle, color: Colors.green);
+    }
+    return null;
   }
 
   InputDecoration _inputDecoration(String label) {

@@ -159,16 +159,19 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
             color: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const Text(
                   'Level:',
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                 ),
                 const SizedBox(width: 6),
-                Flexible(
+                SizedBox(
+                  width: 120,
                   child: DropdownButton<String>(
                     value: _levelFilter,
                     isDense: true,
+                    isExpanded: true,
                     underline: const SizedBox(),
                     items: _levelOptions
                         .map(
@@ -183,6 +186,7 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
                                     : _levelColor(l),
                                 fontWeight: FontWeight.w600,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         )
@@ -192,14 +196,13 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
                     },
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 const Text(
                   'Event:',
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                 ),
                 const SizedBox(width: 6),
-                Flexible(
-                  flex: 3,
+                Expanded(
                   child: DropdownButton<String>(
                     value: _eventFilter,
                     isDense: true,
@@ -230,8 +233,10 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
                     },
                   ),
                 ),
-                GestureDetector(
+                const SizedBox(width: 6),
+                InkWell(
                   onTap: () => setState(() {}),
+                  borderRadius: BorderRadius.circular(20),
                   child: const Padding(
                     padding: EdgeInsets.all(4),
                     child: Icon(Icons.refresh, size: 20),

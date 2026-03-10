@@ -20,9 +20,7 @@ class OnboardingScreen extends StatelessWidget {
           ),
 
           // Dark overlay
-          Container(
-            color: Colors.black.withOpacity(0.3),
-          ),
+          Container(color: Colors.black.withValues(alpha: 0.3)),
 
           // Content
           Center(
@@ -44,10 +42,7 @@ class OnboardingScreen extends StatelessWidget {
                 const Text(
                   "Let's join our community\n to cook better food!",
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                  ),
+                  style: TextStyle(fontSize: 16, color: Colors.white70),
                 ),
                 const SizedBox(height: 40),
 
@@ -70,8 +65,8 @@ class OnboardingScreen extends StatelessWidget {
                       child: const Text(
                         "Get Started",
                         style: TextStyle(
-                          fontSize: 18, 
-                          fontWeight: FontWeight.bold, 
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                       ),

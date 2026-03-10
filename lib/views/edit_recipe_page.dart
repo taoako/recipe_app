@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../model/recipe.dart';
 import 'dart:async' show unawaited;
@@ -39,8 +40,13 @@ class _EditRecipePageState extends State<EditRecipePage> {
   List<TextEditingController> stepControllers = [];
   List<File?> stepImageFiles = [];
   List<String?> stepImageUrls = [];
+  List<String?> ingredientErrors = [];
+  List<String?> stepErrors = [];
 
   bool _isUploading = false;
+  String? _foodNameError;
+  String? _descriptionError;
+  String? _durationError;
 
   @override
   void initState() {
@@ -61,6 +67,11 @@ class _EditRecipePageState extends State<EditRecipePage> {
     ingredientControllers = ingredients.isNotEmpty
         ? ingredients.map((s) => TextEditingController(text: s)).toList()
         : [TextEditingController()];
+    ingredientErrors = List<String?>.filled(
+      ingredientControllers.length,
+      null,
+      growable: true,
+    );
 
     // Steps
     final steps = (data['steps'] as List<dynamic>? ?? []);
@@ -70,10 +81,12 @@ class _EditRecipePageState extends State<EditRecipePage> {
           .toList();
       stepImageUrls = steps.map((s) => s['imageUrl'] as String? ?? '').toList();
       stepImageFiles = List<File?>.filled(steps.length, null, growable: true);
+      stepErrors = List<String?>.filled(steps.length, null, growable: true);
     } else {
       stepControllers = [TextEditingController()];
       stepImageFiles = [null];
       stepImageUrls = [''];
+      stepErrors = [null];
     }
   }
 
@@ -128,7 +141,10 @@ class _EditRecipePageState extends State<EditRecipePage> {
   }
 
   void addIngredient() {
-    setState(() => ingredientControllers.add(TextEditingController()));
+    setState(() {
+      ingredientControllers.add(TextEditingController());
+      ingredientErrors.add(null);
+    });
   }
 
   void removeIngredient(int index) {
@@ -136,6 +152,7 @@ class _EditRecipePageState extends State<EditRecipePage> {
     setState(() {
       ingredientControllers[index].dispose();
       ingredientControllers.removeAt(index);
+      ingredientErrors.removeAt(index);
     });
   }
 
@@ -144,6 +161,7 @@ class _EditRecipePageState extends State<EditRecipePage> {
       stepControllers.add(TextEditingController());
       stepImageFiles.add(null);
       stepImageUrls.add('');
+      stepErrors.add(null);
     });
   }
 
@@ -154,25 +172,104 @@ class _EditRecipePageState extends State<EditRecipePage> {
       stepControllers.removeAt(index);
       stepImageFiles.removeAt(index);
       stepImageUrls.removeAt(index);
+      stepErrors.removeAt(index);
     });
+  }
+
+  String? _validateFoodName() {
+    final required = InputValidator.validateRequiredText(
+      foodNameController.text,
+      'Food name',
+    );
+    if (required != null) return required;
+    return InputValidator.validateTitle(foodNameController.text);
+  }
+
+  String? _validateDescriptionField() {
+    final required = InputValidator.validateRequiredText(
+      descriptionController.text,
+      'Description',
+      maxLength: InputValidator.maxDescriptionLength,
+    );
+    if (required != null) return required;
+    return InputValidator.validateDescription(descriptionController.text);
+  }
+
+  String? _validateDurationField() {
+    return InputValidator.validatePositiveInteger(
+      durationController.text,
+      'Cooking duration',
+      min: 1,
+      max: 300,
+    );
+  }
+
+  String? _validateIngredientField(int index) {
+    return InputValidator.validateRequiredText(
+      ingredientControllers[index].text,
+      'Ingredient',
+      maxLength: InputValidator.maxIngredientLength,
+    );
+  }
+
+  String? _validateStepField(int index) {
+    return InputValidator.validateRequiredText(
+      stepControllers[index].text,
+      'Step ${index + 1}',
+      maxLength: InputValidator.maxStepLength,
+    );
+  }
+
+  void _setDurationValue(int value) {
+    final clamped = value.clamp(1, 300);
+    durationController.value = TextEditingValue(
+      text: clamped.toString(),
+      selection: TextSelection.collapsed(offset: clamped.toString().length),
+    );
+  }
+
+  bool _validateAllFields() {
+    final foodError = _validateFoodName();
+    final descriptionError = _validateDescriptionField();
+    final durationError = _validateDurationField();
+    final nextIngredientErrors = List<String?>.generate(
+      ingredientControllers.length,
+      _validateIngredientField,
+    );
+    final nextStepErrors = List<String?>.generate(
+      stepControllers.length,
+      _validateStepField,
+    );
+
+    setState(() {
+      _foodNameError = foodError;
+      _descriptionError = descriptionError;
+      _durationError = durationError;
+      for (int i = 0; i < ingredientErrors.length; i++) {
+        ingredientErrors[i] = nextIngredientErrors[i];
+      }
+      for (int i = 0; i < stepErrors.length; i++) {
+        stepErrors[i] = nextStepErrors[i];
+      }
+    });
+
+    if (durationError == null) {
+      _setDurationValue(int.parse(durationController.text.trim()));
+    }
+
+    return foodError == null &&
+        descriptionError == null &&
+        durationError == null &&
+        !nextIngredientErrors.any((e) => e != null) &&
+        !nextStepErrors.any((e) => e != null);
   }
 
   Future<void> _saveRecipe() async {
     // Validate inputs before saving
-    final titleError = InputValidator.validateTitle(foodNameController.text);
-    if (titleError != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(titleError)));
-      return;
-    }
-    final descError = InputValidator.validateDescription(
-      descriptionController.text,
-    );
-    if (descError != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(descError)));
+    if (!_validateAllFields()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fix the highlighted fields.')),
+      );
       return;
     }
 
@@ -223,7 +320,7 @@ class _EditRecipePageState extends State<EditRecipePage> {
             'coverImageUrl': newCoverUrl,
             'ingredients': ingredients,
             'steps': steps.map((s) => s.toJson()).toList(),
-            'cookingDuration': int.tryParse(durationController.text) ?? 0,
+            'cookingDuration': int.parse(durationController.text.trim()),
             'category': selectedCategory,
           });
 
@@ -345,9 +442,15 @@ class _EditRecipePageState extends State<EditRecipePage> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: foodNameController,
-                  decoration: const InputDecoration(
+                  maxLength: InputValidator.maxTitleLength,
+                  onChanged: (_) {
+                    setState(() => _foodNameError = _validateFoodName());
+                  },
+                  decoration: InputDecoration(
                     hintText: "Enter food name",
-                    border: OutlineInputBorder(),
+                    counterText: '',
+                    errorText: _foodNameError,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -359,9 +462,17 @@ class _EditRecipePageState extends State<EditRecipePage> {
                 TextField(
                   controller: descriptionController,
                   maxLines: 3,
-                  decoration: const InputDecoration(
+                  maxLength: InputValidator.maxDescriptionLength,
+                  onChanged: (_) {
+                    setState(
+                      () => _descriptionError = _validateDescriptionField(),
+                    );
+                  },
+                  decoration: InputDecoration(
                     hintText: "Tell a little about your food",
-                    border: OutlineInputBorder(),
+                    counterText: '',
+                    errorText: _descriptionError,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -376,10 +487,10 @@ class _EditRecipePageState extends State<EditRecipePage> {
                       onPressed: () {
                         final val = int.tryParse(durationController.text) ?? 1;
                         if (val > 1) {
-                          setState(
-                            () =>
-                                durationController.text = (val - 1).toString(),
-                          );
+                          setState(() {
+                            _setDurationValue(val - 1);
+                            _durationError = _validateDurationField();
+                          });
                         }
                       },
                     ),
@@ -388,8 +499,15 @@ class _EditRecipePageState extends State<EditRecipePage> {
                         controller: durationController,
                         textAlign: TextAlign.center,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
+                        maxLength: 3,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        onChanged: (_) {
+                          setState(() => _durationError = _validateDurationField());
+                        },
+                        decoration: InputDecoration(
+                          counterText: '',
+                          errorText: _durationError,
+                          border: const OutlineInputBorder(),
                         ),
                       ),
                     ),
@@ -398,10 +516,10 @@ class _EditRecipePageState extends State<EditRecipePage> {
                       onPressed: () {
                         final val = int.tryParse(durationController.text) ?? 1;
                         if (val < 300) {
-                          setState(
-                            () =>
-                                durationController.text = (val + 1).toString(),
-                          );
+                          setState(() {
+                            _setDurationValue(val + 1);
+                            _durationError = _validateDurationField();
+                          });
                         }
                       },
                     ),
@@ -444,9 +562,17 @@ class _EditRecipePageState extends State<EditRecipePage> {
                         Expanded(
                           child: TextField(
                             controller: ingredientControllers[i],
-                            decoration: const InputDecoration(
+                            maxLength: InputValidator.maxIngredientLength,
+                            onChanged: (_) {
+                              setState(() {
+                                ingredientErrors[i] = _validateIngredientField(i);
+                              });
+                            },
+                            decoration: InputDecoration(
                               hintText: "Enter ingredient",
-                              border: OutlineInputBorder(),
+                              counterText: '',
+                              errorText: ingredientErrors[i],
+                              border: const OutlineInputBorder(),
                             ),
                           ),
                         ),
@@ -481,8 +607,16 @@ class _EditRecipePageState extends State<EditRecipePage> {
                       TextField(
                         controller: stepControllers[i],
                         maxLines: 3,
+                        maxLength: InputValidator.maxStepLength,
+                        onChanged: (_) {
+                          setState(() {
+                            stepErrors[i] = _validateStepField(i);
+                          });
+                        },
                         decoration: InputDecoration(
                           hintText: "Describe step ${i + 1}",
+                          counterText: '',
+                          errorText: stepErrors[i],
                           border: const OutlineInputBorder(),
                         ),
                       ),

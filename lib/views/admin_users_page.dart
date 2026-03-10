@@ -73,132 +73,142 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       _snack('Admin verification required to change roles.', Colors.orange);
       return;
     }
+    if (!mounted) return;
 
     String? selected = currentRole;
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setInner) => AlertDialog(
+        builder: (ctx, setInner) => Dialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      gradient: _gradient,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.manage_accounts,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Change Role',
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '@$username',
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.normal,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: _assignableRoles.map((role) {
-              final isSelected = selected == role;
-              final color = _roleColor(role);
-              return GestureDetector(
-                onTap: () => setInner(() => selected = role),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? color.withValues(alpha: 0.12)
-                        : Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected ? color : Colors.grey.shade200,
-                      width: isSelected ? 2 : 1,
-                    ),
-                  ),
-                  child: Row(
+                  Row(
                     children: [
-                      Icon(_roleIcon(role), color: color, size: 20),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          gradient: _gradient,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.manage_accounts,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Text(
+                          'Change Role',
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '@$username',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.normal,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ..._assignableRoles.map((role) {
+                    final isSelected = selected == role;
+                    final color = _roleColor(role);
+                    return GestureDetector(
+                      onTap: () => setInner(() => selected = role),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? color.withValues(alpha: 0.12)
+                              : Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected ? color : Colors.grey.shade200,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
                           children: [
-                            Text(
-                              _roleLabel(role),
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: color,
+                            Icon(_roleIcon(role), color: color, size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _roleLabel(role),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: color,
+                                    ),
+                                  ),
+                                  Text(
+                                    _roleDescription(role),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.black45,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            Text(
-                              _roleDescription(role),
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.black45,
-                              ),
-                            ),
+                            if (isSelected)
+                              Icon(Icons.check_circle, color: color, size: 20),
                           ],
                         ),
                       ),
-                      if (isSelected)
-                        Icon(Icons.check_circle, color: color, size: 20),
+                    );
+                  }),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        onPressed: selected == currentRole
+                            ? null
+                            : () => Navigator.pop(ctx, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF7043),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text('Confirm'),
+                      ),
                     ],
                   ),
-                ),
-              );
-            }).toList(),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: selected == currentRole
-                  ? null
-                  : () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF7043),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                ],
               ),
-              child: const Text('Confirm'),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -253,37 +263,61 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       _snack('Admin verification required to manage accounts.', Colors.orange);
       return;
     }
+    if (!mounted) return;
 
     final action = isCurrentlyDisabled ? 'enable' : 'disable';
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text(isCurrentlyDisabled ? 'Enable Account' : 'Disable Account'),
-        content: Text(
-          isCurrentlyDisabled
-              ? 'Allow @$username to log in again?'
-              : 'Prevent @$username from logging in? Their data will be kept.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isCurrentlyDisabled
-                  ? Colors.green
-                  : Colors.orange.shade700,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isCurrentlyDisabled ? 'Enable Account' : 'Disable Account',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  isCurrentlyDisabled
+                      ? 'Allow @$username to log in again?'
+                      : 'Prevent @$username from logging in? Their data will be kept.',
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isCurrentlyDisabled
+                            ? Colors.green
+                            : Colors.orange.shade700,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(isCurrentlyDisabled ? 'Enable' : 'Disable'),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            child: Text(isCurrentlyDisabled ? 'Enable' : 'Disable'),
           ),
-        ],
+        ),
       ),
     );
     if (confirmed != true) return;
@@ -316,68 +350,86 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       _snack('Admin verification required to delete users.', Colors.orange);
       return;
     }
+    if (!mounted) return;
 
     // Step 1: type-to-confirm dialog
     final confirmCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
+        builder: (ctx, setS) => Dialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
-          title: const Row(
-            children: [
-              Icon(Icons.warning_rounded, color: Colors.red),
-              SizedBox(width: 8),
-              Text('Remove User'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'This will permanently delete @$username\'s profile and all their data. This cannot be undone.',
-                style: const TextStyle(fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Type the username to confirm:',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: confirmCtrl,
-                decoration: InputDecoration(
-                  hintText: username,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.warning_rounded, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text(
+                        'Remove User',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                onChanged: (_) => setS(() {}),
+                  const SizedBox(height: 16),
+                  Text(
+                    'This will permanently delete @$username\'s profile and all their data. This cannot be undone.',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Type the username to confirm:',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: confirmCtrl,
+                    decoration: InputDecoration(
+                      hintText: username,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onChanged: (_) => setS(() {}),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        onPressed: confirmCtrl.text.trim() == username
+                            ? () => Navigator.pop(ctx, true)
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: confirmCtrl.text.trim() == username
-                  ? () => Navigator.pop(ctx, true)
-                  : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text('Delete'),
-            ),
-          ],
         ),
       ),
     );
@@ -421,9 +473,9 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FC),
-      body: Column(
+    return ColoredBox(
+      color: const Color(0xFFF7F8FC),
+      child: Column(
         children: [
           // ── Search + filter header ────────────────────────────────────────
           Container(
@@ -690,12 +742,15 @@ class _UserCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        '@$username',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF2D2D2D),
+                      Flexible(
+                        child: Text(
+                          '@$username',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF2D2D2D),
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (isSelf) ...[

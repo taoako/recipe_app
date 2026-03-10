@@ -48,6 +48,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     if (initialUri != null) {
       final initialLink = initialUri.toString();
       if (initialLink.contains("resetPassword")) {
+        if (!mounted) return;
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -265,7 +266,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                         vertical: 10,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.1),
+                        color: Colors.green.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(

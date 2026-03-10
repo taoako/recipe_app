@@ -179,7 +179,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
                 padding: const EdgeInsets.all(20),
                 children: [
                   // ── Section: Content ──────────────────────────────────
-                  _SectionHeader(
+                  const _SectionHeader(
                     icon: Icons.restaurant_menu,
                     title: 'Content Overview',
                   ),
@@ -226,7 +226,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
                   const SizedBox(height: 28),
 
                   // ── Section: Users ────────────────────────────────────
-                  _SectionHeader(
+                  const _SectionHeader(
                     icon: Icons.people_outline,
                     title: 'User Activity',
                   ),
@@ -265,7 +265,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
                   const SizedBox(height: 28),
 
                   // ── Section: Recent Errors ────────────────────────────
-                  _SectionHeader(
+                  const _SectionHeader(
                     icon: Icons.bug_report_outlined,
                     title: 'Recent Errors',
                   ),

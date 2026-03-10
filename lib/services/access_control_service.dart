@@ -3,13 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'app_logger.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Role-Based Access Control (RBAC) Service
-// ─────────────────────────────────────────────────────────────────────────────
 
-/// Defines every role recognised by the application.
-///
-/// Ordering matters: [guest] < [user] < [moderator] < [admin].
 enum AppRole { guest, user, moderator, admin }
 
 /// Every protectable system feature / resource.
@@ -22,8 +17,8 @@ enum SystemFeature {
   // ── Authenticated users ────────────────────────────────────────────────
   userDashboard,
   editProfile,
-  submitData, // upload recipes
-  viewOwnRecords, // own recipes, liked posts, followers
+  submitData,
+  viewOwnRecords,
   viewNotifications,
   searchRecipes,
   viewRecipeDetail,
@@ -31,32 +26,24 @@ enum SystemFeature {
   reportProblem,
 
   // ── Moderator ──────────────────────────────────────────────────────────
-  reviewReports, // flagged-post review
-  sendAnnouncements, // announcements to users
+  reviewReports,
+  sendAnnouncements,
   // ── Administrator ──────────────────────────────────────────────────────
-  viewAllRecords, // all content tab
-  manageUsers, // user management (roles, disable, delete)
-  systemConfiguration, // admin analytics dashboard
-  viewLogs, // system logs
-  deleteRecords, // remove any recipe
-  incidentResponse, // incident response panel
-  viewUserReports, // user-submitted bug reports
+  viewAllRecords,
+  manageUsers,
+  systemConfiguration,
+  viewLogs,
+  deleteRecords,
+  incidentResponse,
+  viewUserReports,
 }
 
-/// Central access-control service that answers **"can role X do Y?"**.
-///
-/// The permission matrix is kept in a single, auditable constant map.
 class AccessControlService {
-  AccessControlService._(); // no instances
+  AccessControlService._();
 
-  // ═══════════════════════════════════════════════════════════════════════════
   // Permission matrix  (ACL)
-  //
-  //   Key   = SystemFeature
-  //   Value = set of roles that are ALLOWED
-  // ═══════════════════════════════════════════════════════════════════════════
+
   static const Map<SystemFeature, Set<AppRole>> _acl = {
-    // ── Public (guest + user + moderator + admin) ────────────────────────
     SystemFeature.viewHomepage: {
       AppRole.guest,
       AppRole.user,
@@ -114,19 +101,15 @@ class AccessControlService {
     SystemFeature.reviewReports: {AppRole.moderator, AppRole.admin},
     SystemFeature.sendAnnouncements: {AppRole.moderator, AppRole.admin},
 
-    // ── Administrator only ───────────────────────────────────────────────
-    SystemFeature.viewAllRecords: {AppRole.admin},
+    // ── Content moderation (moderator only) ──────────────────────────────
+    SystemFeature.viewAllRecords: {AppRole.moderator},
     SystemFeature.manageUsers: {AppRole.admin},
     SystemFeature.systemConfiguration: {AppRole.admin},
     SystemFeature.viewLogs: {AppRole.admin},
-    SystemFeature.deleteRecords: {AppRole.admin},
+    SystemFeature.deleteRecords: {AppRole.moderator},
     SystemFeature.incidentResponse: {AppRole.admin},
     SystemFeature.viewUserReports: {AppRole.admin},
   };
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Core check
-  // ═══════════════════════════════════════════════════════════════════════════
 
   /// Returns `true` when [role] is allowed to use [feature].
   static bool hasAccess(AppRole role, SystemFeature feature) {
@@ -140,14 +123,8 @@ class AccessControlService {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
   // Role resolution helpers
-  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Resolve the [AppRole] from a Firestore user document's data map.
-  ///
-  /// Falls back to [AppRole.user] when the document has no explicit `role`.
-  /// The legacy `isAdmin` boolean is also honoured.
   static AppRole roleFromFirestore(Map<String, dynamic>? data) {
     if (data == null) return AppRole.guest;
     final roleStr = data['role']?.toString().toLowerCase();

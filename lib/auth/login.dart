@@ -25,6 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _isGoogleLoading = false;
+  bool _obscurePassword = true;
   String? _error;
 
   Future<void> _login() async {
@@ -46,6 +47,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
       _error = null;
     });
+
+    bool navigated = false;
 
     // ── Check account lockout ────────────────────────────────────────────
     final lockoutRemaining = await SecurityService.checkAccountLockout(email);
@@ -131,14 +134,31 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .get();
+      // Force token refresh so Firestore recognises the new session
+      // (on Windows/web SDK the token can lag behind).
+      await userCredential.user!.getIdToken(true);
 
-      final userData = userDoc.data();
-      final isAdmin = userData?['isAdmin'] ?? false;
-      final role = userData?['role']?.toString() ?? 'user';
+      Map<String, dynamic>? userData;
+      for (var attempt = 0; attempt < 3; attempt++) {
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userCredential.user!.uid)
+              .get();
+          userData = userDoc.data();
+          break;
+        } on FirebaseException catch (e) {
+          if (e.code == 'permission-denied' && attempt < 2) {
+            await Future.delayed(Duration(milliseconds: 500 * (attempt + 1)));
+            await userCredential.user!.getIdToken(true);
+            continue;
+          }
+          rethrow;
+        }
+      }
+
+      final isAdmin = userData?['isAdmin'] == true;
+      final role = userData?['role']?.toString().trim().toLowerCase() ?? 'user';
       final isDisabled = userData?['isDisabled'] == true;
 
       if (isDisabled) {
@@ -200,6 +220,8 @@ class _LoginScreenState extends State<LoginScreen> {
       final needs2FA = isAdminOrMod || userTwoFAEnabled;
 
       if (needs2FA && mounted) {
+        FocusScope.of(context).unfocus();
+        await WidgetsBinding.instance.endOfFrame;
         final twoFAPassed = await SecurityService.show2FADialog(
           context,
           userCredential.user!.uid,
@@ -236,15 +258,19 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (!mounted) return;
-      Navigator.pushReplacement(
+      navigated = true;
+      // Use pushAndRemoveUntil to fully clear the stack and avoid duplicate GlobalKeys
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
+          settings: const RouteSettings(name: '/home-post-login'),
           builder: (context) {
             if (isAdmin || role == 'admin') return const AdminPage();
             if (role == 'moderator') return const ModeratorPage();
             return const MainPage();
           },
         ),
+        (_) => false, // Remove all previous routes
       );
     } on FirebaseAuthException catch (e) {
       // ── Record failed attempt for lockout ─────────────────────────────
@@ -291,7 +317,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       });
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && !navigated) setState(() => _isLoading = false);
     }
   }
 
@@ -300,6 +326,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _isGoogleLoading = true;
       _error = null;
     });
+
+    bool navigated = false;
 
     try {
       final userCredential = await GoogleAuthService.signInWithGoogle();
@@ -312,15 +340,53 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .get();
+      // Force token refresh so Firestore recognises the new session
+      await userCredential.user!.getIdToken(true);
 
-      final userData = userDoc.data();
-      final isAdmin = userData?['isAdmin'] ?? false;
-      final role = userData?['role']?.toString() ?? 'user';
+      Map<String, dynamic>? userData;
+      for (var attempt = 0; attempt < 3; attempt++) {
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userCredential.user!.uid)
+              .get();
+          userData = userDoc.data();
+          break;
+        } on FirebaseException catch (e) {
+          if (e.code == 'permission-denied' && attempt < 2) {
+            await Future.delayed(Duration(milliseconds: 500 * (attempt + 1)));
+            await userCredential.user!.getIdToken(true);
+            continue;
+          }
+          rethrow;
+        }
+      }
+
+      final isAdmin = userData?['isAdmin'] == true;
+      final role = userData?['role']?.toString().trim().toLowerCase() ?? 'user';
       final isDisabled = userData?['isDisabled'] == true;
+
+      // ── Check account lockout for Google OAuth too ─────────────────────
+      final googleEmail = userCredential.user!.email ?? '';
+      if (googleEmail.isNotEmpty) {
+        final lockoutRemaining = await SecurityService.checkAccountLockout(
+          googleEmail,
+        );
+        if (lockoutRemaining != null) {
+          final minutes = lockoutRemaining.inMinutes;
+          final seconds = lockoutRemaining.inSeconds % 60;
+          await FirebaseAuth.instance.signOut();
+          if (mounted) {
+            setState(() {
+              _isGoogleLoading = false;
+              _error =
+                  'Account is temporarily locked due to too many failed attempts. '
+                  'Please try again in ${minutes}m ${seconds}s.';
+            });
+          }
+          return;
+        }
+      }
 
       if (isDisabled) {
         // Log blocked login attempt for disabled account
@@ -348,6 +414,8 @@ class _LoginScreenState extends State<LoginScreen> {
       final needs2FAG = isAdminOrModG || userTwoFAEnabledG;
 
       if (needs2FAG && mounted) {
+        FocusScope.of(context).unfocus();
+        await WidgetsBinding.instance.endOfFrame;
         final twoFAPassed = await SecurityService.show2FADialog(
           context,
           userCredential.user!.uid,
@@ -384,15 +452,19 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (!mounted) return;
-      Navigator.pushReplacement(
+      navigated = true;
+      // Use pushAndRemoveUntil to fully clear the stack and avoid duplicate GlobalKeys
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
+          settings: const RouteSettings(name: '/home-post-google'),
           builder: (context) {
             if (isAdmin || role == 'admin') return const AdminPage();
             if (role == 'moderator') return const ModeratorPage();
             return const MainPage();
           },
         ),
+        (_) => false, // Remove all previous routes
       );
     } catch (e) {
       // Persist Google sign-in failure to Firestore logs (not just console)
@@ -405,7 +477,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       setState(() => _error = 'Google sign-in failed. Please try again.');
     } finally {
-      if (mounted) setState(() => _isGoogleLoading = false);
+      if (mounted && !navigated) setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -451,7 +523,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.deepOrange.withOpacity(0.15),
+                      color: Colors.deepOrange.withValues(alpha: 0.15),
                       blurRadius: 15,
                       offset: const Offset(0, 5),
                     ),
@@ -479,9 +551,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     // Password Field
                     TextField(
                       controller: _passwordController,
-                      obscureText: true,
+                      obscureText: _obscurePassword,
                       decoration: InputDecoration(
                         prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                          onPressed: () {
+                            setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            );
+                          },
+                        ),
                         labelText: "Password",
                         filled: true,
                         fillColor: Colors.orange.shade50,

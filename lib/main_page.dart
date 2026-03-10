@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'views/profile_page.dart';
 
 class MainPage extends StatefulWidget {
-const MainPage({super.key});
+  const MainPage({super.key});
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -17,17 +17,26 @@ const MainPage({super.key});
 class _MainPageState extends State<MainPage> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = [
-    const HomePage(),
-    const UploadPage(),
-    const NotificationPage(),
-    ProfilePage(),
-  ];
+  // Build pages lazily to avoid duplicate GlobalKey issues from const widgets
+  Widget _getPage(int index) {
+    switch (index) {
+      case 0:
+        return const HomePage();
+      case 1:
+        return const UploadPage();
+      case 2:
+        return const NotificationPage();
+      case 3:
+        return const ProfilePage();
+      default:
+        return const HomePage();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[_currentIndex],
+      body: _getPage(_currentIndex),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         selectedItemColor: Colors.orange,
